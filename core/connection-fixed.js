@@ -220,7 +220,7 @@ function setupEventHandlers(sock, saveCreds, usePairingCode, phoneNumber) {
         // Process with delay to prevent session conflicts
         setTimeout(() => {
           logger.info(`📨 Processing ${validMessages.length} message(s)`);
-          sock.ev.emit('message.upsert', { messages: validMessages, type: m.type });
+          sock.ev.emit('messages.upsert', { messages: validMessages, type: m.type });
         }, 1000);
       }
     } catch (error) {

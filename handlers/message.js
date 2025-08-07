@@ -14,6 +14,7 @@ export function setupMessageHandler(conn) {
   
   conn.ev.on('messages.upsert', async ({ messages, type }) => {
     try {
+      logger.debug(`📨 Message handler received ${messages.length} messages of type: ${type}`);
       if (type !== 'notify') return;
       
       for (const message of messages) {
@@ -30,14 +31,17 @@ export function setupMessageHandler(conn) {
           text: getMessageText(message.message)
         };
         
-        logger.info(`📨 Message from ${m.pushName}: ${m.text}`);
+        logger.info(`📨 Message from ${m.pushName}: ${m.text || 'Media/Other'}`);
         
         // Process commands if text starts with common prefixes
         if (m.text && (m.text.startsWith('.') || m.text.startsWith('/') || m.text.startsWith('!'))) {
-          logger.info(`🔧 Processing command: ${m.text}`);
+          logger.info(`🔧 Executing command: ${m.text}`);
           await processCommand(conn, m);
         } else if (m.text) {
-          // Process regular messages  
+          // Auto-respond to test messages
+          if (m.text.toLowerCase().includes('test') || m.text.toLowerCase().includes('hola')) {
+            await conn.sendMessage(m.sender, { text: '👋 ¡Hola! El bot está funcionando correctamente.\n\nUsa .ping para probar comandos' });
+          }
           logger.debug(`💬 Regular message: ${m.text.substring(0, 50)}...`);
         }
       }
