@@ -2,27 +2,27 @@
  * Database initialization and management
  */
 import { Low } from 'lowdb';
-import { JSONFile } from 'lowdb';
+import { JSONFile } from 'lowdb/node';
 import { logger } from './logger.js';
 
 let db = null;
 
 export async function initializeDatabase() {
   try {
-    // Initialize database with default structure
-    const adapter = new JSONFile('database.json');
-    db = new Low(adapter);
-
-    // Read data from JSON file
-    await db.read();
-
-    // Initialize default data structure
-    db.data = db.data || {
+    // Define default data structure
+    const defaultData = {
       users: {},
       chats: {},
       stats: {},
       settings: {}
     };
+
+    // Initialize database with default structure
+    const adapter = new JSONFile('database.json');
+    db = new Low(adapter, defaultData);
+
+    // Read data from JSON file
+    await db.read();
 
     // Set global reference
     global.db = {

@@ -12,37 +12,26 @@ if (!existsSync(logsDir)) {
   mkdirSync(logsDir, { recursive: true });
 }
 
-// Create logger instance with pretty printing for development
+// Create logger instance with simple configuration for stability
 const logger = pino({
   level: process.env.DEBUG === 'true' ? 'debug' : 'info',
   transport: {
-    targets: [
-      {
-        target: 'pino-pretty',
-        level: 'info',
-        options: {
-          colorize: true,
-          translateTime: 'HH:MM:ss',
-          ignore: 'pid,hostname',
-          messageFormat: '{msg}',
-          destination: process.stdout
-        }
-      },
-      {
-        target: 'pino/file',
-        level: 'debug',
-        options: {
-          destination: join(logsDir, `bot-${new Date().toISOString().split('T')[0]}.log`),
-          mkdir: true
-        }
-      }
-    ]
+    target: 'pino-pretty',
+    options: {
+      colorize: true,
+      translateTime: 'HH:MM:ss',
+      ignore: 'pid,hostname',
+      messageFormat: '{msg}'
+    }
   }
 });
 
 // Add custom methods for better UX
+const originalError = logger.error.bind(logger);
+const originalWarn = logger.warn.bind(logger);
+
 logger.success = (msg, ...args) => logger.info(`✅ ${msg}`, ...args);
-logger.warn = (msg, ...args) => logger.warn(`⚠️  ${msg}`, ...args);
-logger.error = (msg, ...args) => logger.error(`❌ ${msg}`, ...args);
+logger.warn = (msg, ...args) => originalWarn(`⚠️  ${msg}`, ...args);
+logger.error = (msg, ...args) => originalError(`❌ ${msg}`, ...args);
 
 export { logger };

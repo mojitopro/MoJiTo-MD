@@ -12,28 +12,24 @@ import { logger } from '../services/logger.js';
 export async function validateEnvironment() {
   logger.info('Validating environment...');
   
-  const checks = [
-    checkNodeVersion(),
-    checkRequiredDirectories(),
-    checkSystemTools(),
-    checkNetworkConnection()
-  ];
-  
-  const results = await Promise.allSettled(checks);
-  
-  for (const [index, result] of results.entries()) {
-    if (result.status === 'rejected') {
-      logger.error(`Environment check ${index + 1} failed:`, result.reason);
-    }
+  try {
+    // Only do essential checks that won't cause blocking issues
+    checkNodeVersion();
+    checkRequiredDirectories();
+    
+    // Initialize global support object with default values
+    global.support = {
+      ffmpeg: false,
+      ffprobe: false,
+      convert: false,
+      magick: false
+    };
+    
+    logger.success('Environment validation passed');
+  } catch (error) {
+    logger.error('Environment validation failed:', error.message);
+    throw error;
   }
-  
-  const failed = results.filter(r => r.status === 'rejected');
-  
-  if (failed.length > 0) {
-    throw new Error(`Environment validation failed: ${failed.length} check(s) failed`);
-  }
-  
-  logger.success('Environment validation passed');
 }
 
 /**

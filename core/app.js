@@ -10,6 +10,7 @@ import { setupMessageHandler } from '../handlers/message.js';
 import { setupEventHandlers } from '../handlers/events.js';
 import { startCleanupService } from '../services/cleanup.js';
 import { logger } from '../services/logger.js';
+import { startHTTPServer } from '../server.js';
 
 export async function startBot() {
   try {
@@ -45,6 +46,10 @@ export async function startBot() {
     // Start cleanup service
     startCleanupService();
     logger.info('✅ Cleanup service started');
+
+    // Start HTTP server for Replit compatibility
+    startHTTPServer(5000);
+    logger.info('✅ HTTP server started on port 5000');
 
     // Setup graceful shutdown
     setupGracefulShutdown();

@@ -21,7 +21,7 @@ export const GLOBAL_CONFIG = {
  */
 
 export const CONNECTION_CONFIG = {
-  logger: console,
+  logger: P.pino({ level: 'silent' }),
   printQRInTerminal: false,
   mobile: false,
   browser: ["MoJiTo Bot", "Desktop", "1.0.0"],

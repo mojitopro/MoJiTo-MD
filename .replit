@@ -5,7 +5,7 @@ channel = "stable-25_05"
 packages = ["curl"]
 
 [workflows]
-runButton = "MoJiTo Bot"
+runButton = "Project"
 
 [[workflows.workflow]]
 name = "Project"
@@ -22,8 +22,11 @@ author = "agent"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "npm install && node index.js"
+args = "node index.js"
 waitForPort = 5000
+
+[workflows.workflow.metadata]
+outputType = "console"
 
 [[workflows.workflow]]
 name = "MoJiTo Bot"
