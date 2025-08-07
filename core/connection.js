@@ -24,6 +24,8 @@ let globalConn = null;
 
 export async function initializeConnection(options = {}) {
   try {
+    logger.info('Starting connection initialization...');
+    
     // Clear any existing connection
     if (globalConn) {
       try {
@@ -34,8 +36,29 @@ export async function initializeConnection(options = {}) {
       globalConn = null;
     }
 
-    // Initialize authentication state
-    const { state, saveCreds } = await useMultiFileAuthState('./MojiSession');
+    // Test if we can create the session directory
+    try {
+      const fs = await import('fs');
+      if (!fs.existsSync('./MojiSession')) {
+        fs.mkdirSync('./MojiSession', { recursive: true });
+        logger.debug('Created MojiSession directory');
+      }
+    } catch (error) {
+      logger.error('Failed to create session directory:', error.message);
+      throw new Error('Cannot create session directory: ' + error.message);
+    }
+
+    // Initialize authentication state with error handling
+    let state, saveCreds;
+    try {
+      const authResult = await useMultiFileAuthState('./MojiSession');
+      state = authResult.state;
+      saveCreds = authResult.saveCreds;
+      logger.debug('Authentication state initialized');
+    } catch (error) {
+      logger.error('Failed to initialize auth state:', error.message);
+      throw new Error('Auth state initialization failed: ' + error.message);
+    }
     
     // Set connection options
     usePairingCode = options.usePairingCode || process.env.USE_PAIRING_CODE === 'true';
@@ -62,27 +85,51 @@ export async function initializeConnection(options = {}) {
       logger.info(`Using pairing code mode with phone: +${phoneNumber}`);
     }
     
-    // Create WhatsApp socket with enhanced configuration
-    const conn = createWASocket({
-      ...CONNECTION_CONFIG,
-      auth: {
-        creds: state.creds,
-        keys: makeCacheableSignalKeyStore(state.keys, logger)
-      },
-      printQRInTerminal: false, // We handle QR manually
-      mobile: usePairingCode,
-      browser: usePairingCode ? 
-        ["Chrome (Linux)", "", ""] : 
-        ["MoJiTo Bot", "Desktop", "1.0.0"],
-      connectTimeoutMs: 60000,
-      defaultQueryTimeoutMs: 0,
-      keepAliveIntervalMs: 10000,
-      emitOwnEvents: true,
-      fireInitQueries: true,
-      generateHighQualityLinkPreview: false,
-      syncFullHistory: false,
-      markOnlineOnConnect: true
-    });
+    // Create WhatsApp socket with enhanced configuration and error handling
+    let conn;
+    try {
+      logger.debug('Creating WhatsApp socket...');
+      
+      // Create a compatible logger for Baileys
+      const baileyLogger = {
+        fatal: (...args) => logger.error(...args),
+        error: (...args) => logger.error(...args),
+        warn: (...args) => logger.warn(...args),
+        info: (...args) => logger.info(...args),
+        debug: (...args) => logger.debug(...args),
+        trace: (...args) => logger.debug(...args),
+        child: () => baileyLogger,
+        level: 'error'
+      };
+      
+      conn = createWASocket({
+        ...CONNECTION_CONFIG,
+        logger: baileyLogger, // Use our compatible logger
+        auth: {
+          creds: state.creds,
+          keys: makeCacheableSignalKeyStore(state.keys, baileyLogger)
+        },
+        printQRInTerminal: false, // We handle QR manually
+        mobile: usePairingCode,
+        browser: usePairingCode ? 
+          ["Chrome (Linux)", "", ""] : 
+          ["MoJiTo Bot", "Desktop", "1.0.0"],
+        connectTimeoutMs: 60000,
+        defaultQueryTimeoutMs: 0,
+        keepAliveIntervalMs: 10000,
+        emitOwnEvents: true,
+        fireInitQueries: true,
+        generateHighQualityLinkPreview: false,
+        syncFullHistory: false,
+        markOnlineOnConnect: true
+      });
+      
+      logger.debug('WhatsApp socket created successfully');
+      
+    } catch (error) {
+      logger.error('Failed to create WhatsApp socket:', error.message);
+      throw new Error('Socket creation failed: ' + error.message);
+    }
     
     // Store global connection reference
     globalConn = conn;
