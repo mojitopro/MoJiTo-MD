@@ -102,18 +102,18 @@ export async function initializeConnection(options = {}) {
         level: 'error'
       };
       
-      conn = createWASocket({
-        ...CONNECTION_CONFIG,
-        logger: baileyLogger, // Use our compatible logger
+      // Configuración ultra-compatible para WhatsApp
+      const socketConfig = {
+        logger: baileyLogger,
         auth: {
           creds: state.creds,
           keys: makeCacheableSignalKeyStore(state.keys, baileyLogger)
         },
-        printQRInTerminal: false, // We handle QR manually
+        printQRInTerminal: false,
         mobile: usePairingCode,
         browser: usePairingCode ? 
-          ["Chrome (Linux)", "", ""] : 
-          ["MoJiTo Bot", "Desktop", "1.0.0"],
+          ["Ubuntu", "Chrome", "20.0.04"] : 
+          ["WhatsApp Web", "Chrome", "4.0.0"],
         connectTimeoutMs: 60000,
         defaultQueryTimeoutMs: 0,
         keepAliveIntervalMs: 10000,
@@ -121,8 +121,17 @@ export async function initializeConnection(options = {}) {
         fireInitQueries: true,
         generateHighQualityLinkPreview: false,
         syncFullHistory: false,
-        markOnlineOnConnect: true
-      });
+        markOnlineOnConnect: true,
+        retryRequestDelayMs: 250,
+        maxMsgRetryCount: 5,
+        receivedPendingNotifications: false,
+        // Usar versión automática de Baileys sin especificar
+        getMessage: async (key) => {
+          return { conversation: "Hello World" };
+        }
+      };
+      
+      conn = createWASocket(socketConfig);
       
       logger.debug('WhatsApp socket created successfully');
       
@@ -176,13 +185,48 @@ async function handleConnectionUpdate(conn, update) {
   logger.debug('Connection update:', { connection, isOnline });
   
   // Handle QR code display
-  if (qr && !usePairingCode) {
+  if (qr) {
     logger.info('QR code received, displaying...');
+    console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.log('📱 ESCANEA ESTE CÓDIGO QR CON WHATSAPP');
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     await displayQR(qr);
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
   }
   
-  // Handle pairing code
-  if (connection === 'connecting' && usePairingCode && phoneNumber && !conn.authState.creds.registered) {
+  // Handle pairing code - Mejorado para mejor compatibilidad
+  if (qr && usePairingCode && phoneNumber) {
+    logger.info('Pairing code mode requested, generating code...');
+    
+    try {
+      await delay(2000); // Esperar un poco antes de generar el código
+      const code = await conn.requestPairingCode(phoneNumber);
+      
+      if (code) {
+        console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+        console.log('🔐 CÓDIGO DE EMPAREJAMIENTO WHATSAPP');
+        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+        console.log(`📱 CÓDIGO: ${code}`);
+        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+        console.log('📋 INSTRUCCIONES:');
+        console.log('1. Abre WhatsApp en tu teléfono');
+        console.log('2. Ve a Configuración > Dispositivos vinculados');
+        console.log('3. Toca "Vincular un dispositivo"');
+        console.log('4. Toca "Vincular con número de teléfono"');
+        console.log(`5. Ingresa este código: ${code}`);
+        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
+        
+        await displayPairingCode(code);
+        return; // Salir después de mostrar el código
+      }
+    } catch (error) {
+      logger.error('Error generating pairing code:', error.message);
+      logger.info('Fallback to QR code mode...');
+    }
+  }
+  
+  // Legacy pairing code logic
+  if (connection === 'connecting' && usePairingCode && phoneNumber && !conn.authState?.creds?.registered) {
     logger.info('Connection establishing, requesting pairing code...');
     
     let attempts = 0;
@@ -316,10 +360,16 @@ async function handleConnectionUpdate(conn, update) {
     } else if (shouldReconnect(statusCode)) {
       await attemptReconnection();
     } else {
-      logger.error('Connection closed with unrecoverable error, restarting process...');
-      setTimeout(() => {
-        process.exit(1);
-      }, 5000);
+      logger.error('Connection closed with unrecoverable error');
+      // En lugar de salir, intentar reconectar después de un tiempo
+      setTimeout(async () => {
+        try {
+          logger.info('Attempting to restart connection...');
+          await initializeConnection({ usePairingCode, phoneNumber });
+        } catch (error) {
+          logger.error('Failed to restart connection:', error);
+        }
+      }, 10000); // Esperar 10 segundos antes de reintentar
     }
   }
 }
