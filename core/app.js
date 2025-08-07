@@ -24,7 +24,7 @@ export async function startBot() {
     await initializeDatabase();
     logger.info('✅ Database initialized');
 
-    // Initialize WhatsApp connection
+    // Initialize WhatsApp connection with fixed system
     const connection = await initializeConnection({
       usePairingCode: process.env.USE_PAIRING_CODE === 'true',
       phoneNumber: process.env.PHONE_NUMBER
@@ -38,13 +38,10 @@ export async function startBot() {
     const plugins = await loadPlugins();
     logger.info(`✅ Loaded ${plugins.length} plugins`);
 
-    // Setup event handlers first
-    setupEventHandlers(connection);
-    logger.info('✅ Event handlers registered');
-    
-    // Setup message handler after connection is stable
+    // Setup message and event handlers
     setupMessageHandler(connection);
-    logger.info('✅ Message handler configured');
+    setupEventHandlers(connection);
+    logger.info('✅ Message handlers configured');
 
     // Start cleanup service
     startCleanupService();
