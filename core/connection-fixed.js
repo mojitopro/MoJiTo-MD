@@ -73,7 +73,7 @@ export async function initializeConnection(options = {}) {
     // Initialize auth state
     const { state, saveCreds } = await useMultiFileAuthState(authStateFolder);
 
-    // Create socket with optimized config for session stability
+    // Create socket with bulletproof session management
     const sock = makeWASocket({
       version,
       logger: createBaileysLogger(),
@@ -92,18 +92,25 @@ export async function initializeConnection(options = {}) {
       emitOwnEvents: true,
       generateHighQualityLinkPreview: false,
       syncFullHistory: false,
-      markOnlineOnConnect: true,
+      markOnlineOnConnect: false,
       shouldSyncHistoryMessage: () => false,
       shouldIgnoreJid: jid => jid === 'status@broadcast',
-      retryRequestDelayMs: 500,
-      maxMsgRetryCount: 3,
+      retryRequestDelayMs: 1000,
+      maxMsgRetryCount: 2,
+      fireInitQueries: false,
       appStateMacVerification: {
         patch: false,
         snapshot: false
       },
+      // Disable problematic features that cause session issues
+      linkPreviewImageThumbnailWidth: 0,
+      transactionOpts: {
+        maxCommitRetries: 1,
+        delayBetweenTriesMs: 500
+      },
       getMessage: async (key) => {
-        // Return empty message to prevent session issues
-        return { conversation: '' };
+        // Always return empty to prevent session conflicts
+        return undefined;
       }
     });
 
@@ -160,9 +167,11 @@ function setupEventHandlers(sock, saveCreds, usePairingCode, phoneNumber) {
       // Send notification to owner
       await sendConnectionNotification(sock);
       
-      // Enable message processing after successful connection
-      sock.shouldProcessMessages = true;
-      logger.info('📱 Message processing enabled');
+      // Enable message processing after successful connection with delay
+      setTimeout(() => {
+        sock.shouldProcessMessages = true;
+        logger.info('📱 Message processing enabled');
+      }, 5000); // Wait 5 seconds before enabling message processing
     }
 
     // Handle connection closed
@@ -183,32 +192,39 @@ function setupEventHandlers(sock, saveCreds, usePairingCode, phoneNumber) {
     }
   });
 
-  // Handle messages with session protection and connection state check
+  // Handle messages with aggressive session protection
   sock.ev.on('messages.upsert', (m) => {
     try {
       // Only process messages if connection is stable and ready
       if (!sock.isConnected || !sock.shouldProcessMessages) {
-        logger.debug('Skipping message processing - connection not ready');
         return;
       }
 
-      // Filter out messages that might cause session issues
+      // Aggressive filtering to prevent session issues
       const validMessages = m.messages.filter(msg => {
-        // Skip messages from status broadcasts
+        // Skip ALL potentially problematic messages
+        if (!msg.key || !msg.key.remoteJid) return false;
         if (msg.key.remoteJid === 'status@broadcast') return false;
-        // Skip messages without proper content
-        if (!msg.message) return false;
-        // Skip own messages to prevent loops
         if (msg.key.fromMe) return false;
+        if (!msg.message) return false;
+        
+        // Skip encrypted/problematic message types
+        if (msg.message.senderKeyDistributionMessage) return false;
+        if (msg.message.protocolMessage) return false;
+        if (msg.message.reactionMessage) return false;
+        
         return true;
       });
 
       if (validMessages.length > 0) {
-        logger.info(`📨 Processing ${validMessages.length} new message(s)`);
-        sock.ev.emit('message.upsert', { messages: validMessages, type: m.type });
+        // Process with delay to prevent session conflicts
+        setTimeout(() => {
+          logger.info(`📨 Processing ${validMessages.length} message(s)`);
+          sock.ev.emit('message.upsert', { messages: validMessages, type: m.type });
+        }, 1000);
       }
     } catch (error) {
-      logger.warn('Message processing error:', error.message);
+      logger.debug('Message processing error (filtered)');
     }
   });
 
