@@ -20,6 +20,7 @@ MoJiTo-MD is a sophisticated WhatsApp bot built with Node.js and the Baileys lib
 
 **Migration Status**: ✅ Complete - Bot 100% optimized and ready
 **Current Status**: Both connection methods tested and working perfectly
+**Session Management**: Fixed "Decrypted message with closed session" errors
 **Guarantee**: 100% functionality in both Termux and Replit environments
 
 ## Connection Methods

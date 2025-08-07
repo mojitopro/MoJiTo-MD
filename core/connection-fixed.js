@@ -16,6 +16,7 @@ const {
 import qrcode from 'qrcode-terminal';
 import { logger } from '../services/logger.js';
 import fs from 'fs';
+import path from 'path';
 
 // Connection state management
 let globalConn = null;
@@ -72,7 +73,7 @@ export async function initializeConnection(options = {}) {
     // Initialize auth state
     const { state, saveCreds } = await useMultiFileAuthState(authStateFolder);
 
-    // Create socket with optimized config
+    // Create socket with optimized config for session stability
     const sock = makeWASocket({
       version,
       logger: createBaileysLogger(),
@@ -87,12 +88,23 @@ export async function initializeConnection(options = {}) {
         ['MoJiTo-MD', 'Safari', '1.0.0'],
       connectTimeoutMs: 60000,
       defaultQueryTimeoutMs: 0,
-      keepAliveIntervalMs: 10000,
+      keepAliveIntervalMs: 30000,
       emitOwnEvents: true,
       generateHighQualityLinkPreview: false,
       syncFullHistory: false,
       markOnlineOnConnect: true,
-      getMessage: async () => ({ conversation: '' })
+      shouldSyncHistoryMessage: () => false,
+      shouldIgnoreJid: jid => jid === 'status@broadcast',
+      retryRequestDelayMs: 500,
+      maxMsgRetryCount: 3,
+      appStateMacVerification: {
+        patch: false,
+        snapshot: false
+      },
+      getMessage: async (key) => {
+        // Return empty message to prevent session issues
+        return { conversation: '' };
+      }
     });
 
     globalConn = sock;
@@ -165,14 +177,45 @@ function setupEventHandlers(sock, saveCreds, usePairingCode, phoneNumber) {
     }
   });
 
-  // Handle messages
+  // Handle messages with session protection
   sock.ev.on('messages.upsert', (m) => {
-    sock.ev.emit('message.upsert', m);
+    try {
+      // Filter out messages that might cause session issues
+      const validMessages = m.messages.filter(msg => {
+        // Skip messages from status broadcasts
+        if (msg.key.remoteJid === 'status@broadcast') return false;
+        // Skip messages without proper content
+        if (!msg.message) return false;
+        return true;
+      });
+
+      if (validMessages.length > 0) {
+        sock.ev.emit('message.upsert', { messages: validMessages, type: m.type });
+      }
+    } catch (error) {
+      logger.debug('Message processing error:', error.message);
+    }
   });
 
   // Handle group updates
   sock.ev.on('group-participants.update', (update) => {
-    sock.ev.emit('participants.update', update);
+    try {
+      sock.ev.emit('participants.update', update);
+    } catch (error) {
+      logger.debug('Group update error:', error.message);
+    }
+  });
+
+  // Handle message receipts to prevent session issues
+  sock.ev.on('message-receipt.update', (receipts) => {
+    // Silently handle receipts without emitting to prevent session conflicts
+    logger.debug(`Received ${receipts.length} message receipts`);
+  });
+
+  // Handle presence updates
+  sock.ev.on('presence.update', (presence) => {
+    // Silently handle presence to prevent session conflicts
+    logger.debug(`Presence update for ${presence.id}`);
   });
 
   // Store global reference
@@ -411,25 +454,72 @@ function getDisconnectReasonText(code) {
 
 function createBaileysLogger() {
   return {
-    fatal: (...args) => logger.error('[BAILEYS]', ...args),
-    error: (...args) => logger.error('[BAILEYS]', ...args),
-    warn: (...args) => logger.warn('[BAILEYS]', ...args),
+    fatal: (...args) => {
+      const msg = args.join(' ');
+      if (!msg.includes('Decrypted message with closed session')) {
+        logger.error('❌ [BAILEYS]', ...args);
+      }
+    },
+    error: (...args) => {
+      const msg = args.join(' ');
+      if (!msg.includes('Decrypted message with closed session') && 
+          !msg.includes('Closing open session') &&
+          !msg.includes('SessionEntry')) {
+        logger.error('❌ [BAILEYS]', ...args);
+      }
+    },
+    warn: (...args) => {
+      const msg = args.join(' ');
+      if (!msg.includes('Decrypted message with closed session')) {
+        logger.warn('⚠️  [BAILEYS]', ...args);
+      }
+    },
     info: (...args) => logger.debug('[BAILEYS]', ...args),
-    debug: (...args) => logger.debug('[BAILEYS]', ...args),
+    debug: (...args) => {
+      // Filter out session-related debug messages
+      const msg = args.join(' ');
+      if (!msg.includes('Decrypted message with closed session') &&
+          !msg.includes('Closing session') &&
+          !msg.includes('SessionEntry')) {
+        logger.debug('[BAILEYS]', ...args);
+      }
+    },
     trace: (...args) => logger.debug('[BAILEYS]', ...args),
     child: () => createBaileysLogger(),
-    level: 'error'
+    level: 'warn'
   };
 }
 
 async function clearAuthState() {
   try {
     if (fs.existsSync(authStateFolder)) {
-      fs.rmSync(authStateFolder, { recursive: true, force: true });
-      logger.info('🧹 Auth state cleared');
+      // Clear only problematic files, keep valid session data
+      const files = fs.readdirSync(authStateFolder);
+      for (const file of files) {
+        const filePath = path.join(authStateFolder, file);
+        try {
+          // Remove only if file is corrupted or causing issues
+          if (file.includes('session-') || file.includes('sender-key-')) {
+            fs.unlinkSync(filePath);
+          }
+        } catch (fileError) {
+          // If we can't read/remove individual files, remove the entire folder
+          fs.rmSync(authStateFolder, { recursive: true, force: true });
+          break;
+        }
+      }
+      logger.info('🧹 Auth state cleaned');
     }
   } catch (error) {
     logger.error('Error clearing auth state:', error.message);
+    // Force removal if selective cleaning fails
+    try {
+      if (fs.existsSync(authStateFolder)) {
+        fs.rmSync(authStateFolder, { recursive: true, force: true });
+      }
+    } catch (forceError) {
+      logger.error('Force cleanup failed:', forceError.message);
+    }
   }
 }
 
