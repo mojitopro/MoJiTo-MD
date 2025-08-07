@@ -9,7 +9,7 @@ import { fileURLToPath } from 'url';
 import { createInterface } from 'readline';
 import yargs from 'yargs';
 import { hideBin } from 'yargs/helpers';
-import { startupDisplay } from './utils/formatters.js';
+import { startupDisplay } from './utils/formatters-optimized.js';
 import { logger } from './services/logger.js';
 import { validateEnvironment } from './utils/validators.js';
 

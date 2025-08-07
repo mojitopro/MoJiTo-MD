@@ -4,7 +4,7 @@
  */
 import { setupGlobalVariables } from '../config/settings.js';
 import { initializeDatabase } from '../services/database.js';
-import { initializeConnection } from './connection.js';
+import { initializeConnection } from './connection-fixed.js';
 import { loadPlugins } from '../plugins/loader.js';
 import { setupMessageHandler } from '../handlers/message.js';
 import { setupEventHandlers } from '../handlers/events.js';

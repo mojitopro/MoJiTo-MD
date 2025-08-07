@@ -1,64 +1,54 @@
 /**
- * Test de conexión simple para WhatsApp
+ * Test script to verify connection functionality
+ * Tests both QR and pairing code modes
  */
-import pkg from '@whiskeysockets/baileys';
-const { 
-  default: createWASocket, 
-  DisconnectReason, 
-  useMultiFileAuthState
-} = pkg;
-import qrTerminal from 'qrcode-terminal';
+import { initializeConnection } from './core/connection-fixed.js';
+import { logger } from './services/logger.js';
 
-async function testConnection() {
-  console.log('🔍 Probando conexión directa a WhatsApp...');
+async function testConnections() {
+  console.log('🧪 Testing WhatsApp connection system...\n');
   
+  // Test 1: QR Code mode
+  console.log('📱 Test 1: QR Code Mode');
   try {
-    // Configuración mínima
-    const { state, saveCreds } = await useMultiFileAuthState('./TestSession');
+    const qrConn = await initializeConnection({ usePairingCode: false });
+    console.log('✅ QR mode connection created successfully');
     
-    const sock = createWASocket({
-      auth: state,
-      printQRInTerminal: false,
-      browser: ["Test Bot", "Chrome", "1.0.0"],
-      logger: {
-        level: 'silent',
-        child: () => ({ level: 'silent' })
-      }
-    });
-
-    sock.ev.on('connection.update', (update) => {
-      const { connection, lastDisconnect, qr } = update;
-      
-      if (qr) {
-        console.log('\n📱 CÓDIGO QR GENERADO:');
-        console.log('════════════════════════════════════════════════════════');
-        qrTerminal.generate(qr, { small: true });
-        console.log('════════════════════════════════════════════════════════');
-        console.log('📋 Escanea este código con WhatsApp > Dispositivos vinculados');
-        console.log('⏳ Esperando conexión...\n');
-      }
-      
-      if (connection === 'close') {
-        const statusCode = lastDisconnect?.error?.output?.statusCode;
-        const reason = Object.keys(DisconnectReason)[Object.values(DisconnectReason).indexOf(statusCode)] || 'Unknown';
-        console.log(`❌ Conexión cerrada: ${reason} (${statusCode})`);
-        
-        if (statusCode !== DisconnectReason.loggedOut) {
-          console.log('🔄 Reintentando en 5 segundos...');
-          setTimeout(() => testConnection(), 5000);
-        }
-      } else if (connection === 'open') {
-        console.log('✅ ¡CONECTADO EXITOSAMENTE!');
-        console.log(`📱 Usuario: ${sock.user.name} (${sock.user.id})`);
-        console.log('🎉 El bot está funcionando correctamente');
-      }
-    });
-
-    sock.ev.on('creds.update', saveCreds);
-
+    // Close connection
+    if (qrConn) {
+      await qrConn.logout();
+      console.log('🔐 QR connection closed');
+    }
   } catch (error) {
-    console.error('❌ Error en test de conexión:', error.message);
+    console.log('❌ QR mode failed:', error.message);
   }
+  
+  console.log('\n' + '─'.repeat(50) + '\n');
+  
+  // Test 2: Pairing Code mode (with test number)
+  console.log('🔐 Test 2: Pairing Code Mode');
+  try {
+    const pairConn = await initializeConnection({ 
+      usePairingCode: true, 
+      phoneNumber: '5511999999999' // Test number
+    });
+    console.log('✅ Pairing code mode connection created successfully');
+    
+    // Close connection
+    if (pairConn) {
+      await pairConn.logout();
+      console.log('🔐 Pairing connection closed');
+    }
+  } catch (error) {
+    console.log('❌ Pairing mode failed:', error.message);
+  }
+  
+  console.log('\n🎉 Connection tests completed!');
 }
 
-testConnection();
+// Run tests only if called directly
+if (import.meta.url === `file://${process.argv[1]}`) {
+  testConnections().catch(console.error);
+}
+
+export { testConnections };
