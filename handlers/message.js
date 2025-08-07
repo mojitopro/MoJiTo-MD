@@ -12,7 +12,7 @@ export function setupMessageHandler(conn) {
 
   logger.info('📱 Setting up message handler...');
   
-  conn.ev.on('messages.upsert', async ({ messages, type }) => {
+  conn.ev.on('message.handler', async ({ messages, type }) => {
     try {
       logger.debug(`📨 Message handler received ${messages.length} messages of type: ${type}`);
       if (type !== 'notify') return;

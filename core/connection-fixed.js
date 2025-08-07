@@ -192,7 +192,10 @@ function setupEventHandlers(sock, saveCreds, usePairingCode, phoneNumber) {
     }
   });
 
-  // Handle messages with aggressive session protection
+  // Store processed message IDs to prevent loops
+  const processedMessages = new Set();
+
+  // Handle messages with loop prevention
   sock.ev.on('messages.upsert', (m) => {
     try {
       // Only process messages if connection is stable and ready
@@ -200,9 +203,17 @@ function setupEventHandlers(sock, saveCreds, usePairingCode, phoneNumber) {
         return;
       }
 
-      // Aggressive filtering to prevent session issues
+      // Filter and prevent message loops
       const validMessages = m.messages.filter(msg => {
-        // Skip ALL potentially problematic messages
+        // Create unique message ID
+        const msgId = `${msg.key.remoteJid}-${msg.key.id}`;
+        
+        // Skip if already processed
+        if (processedMessages.has(msgId)) {
+          return false;
+        }
+        
+        // Skip problematic messages
         if (!msg.key || !msg.key.remoteJid) return false;
         if (msg.key.remoteJid === 'status@broadcast') return false;
         if (msg.key.fromMe) return false;
@@ -213,15 +224,22 @@ function setupEventHandlers(sock, saveCreds, usePairingCode, phoneNumber) {
         if (msg.message.protocolMessage) return false;
         if (msg.message.reactionMessage) return false;
         
+        // Mark as processed
+        processedMessages.add(msgId);
+        
+        // Clean old processed messages (keep only last 100)
+        if (processedMessages.size > 100) {
+          const oldEntries = Array.from(processedMessages).slice(0, 50);
+          oldEntries.forEach(id => processedMessages.delete(id));
+        }
+        
         return true;
       });
 
       if (validMessages.length > 0) {
-        // Process with delay to prevent session conflicts
-        setTimeout(() => {
-          logger.info(`📨 Processing ${validMessages.length} message(s)`);
-          sock.ev.emit('messages.upsert', { messages: validMessages, type: m.type });
-        }, 1000);
+        logger.info(`📨 Processing ${validMessages.length} new message(s)`);
+        // Direct emit without re-entering the loop
+        sock.ev.emit('message.handler', { messages: validMessages, type: m.type });
       }
     } catch (error) {
       logger.debug('Message processing error (filtered)');
