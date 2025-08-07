@@ -147,7 +147,7 @@ function setupEventHandlers(sock, saveCreds, usePairingCode, phoneNumber) {
       logger.success('🎉 Connected to WhatsApp successfully!');
       
       if (sock.user) {
-        logger.info(`👤 Logged in as: ${sock.user.name} (${sock.user.id})`);
+        logger.info(`👤 Logged in as: ${sock.user.name || 'User'} (${sock.user.id})`);
       }
 
       if (isNewLogin) {
@@ -159,11 +159,17 @@ function setupEventHandlers(sock, saveCreds, usePairingCode, phoneNumber) {
 
       // Send notification to owner
       await sendConnectionNotification(sock);
+      
+      // Enable message processing after successful connection
+      sock.shouldProcessMessages = true;
+      logger.info('📱 Message processing enabled');
     }
 
     // Handle connection closed
     if (connection === 'close') {
       sock.isConnected = false;
+      sock.shouldProcessMessages = false;
+      logger.info('📱 Message processing disabled');
       await handleDisconnection(lastDisconnect, usePairingCode, phoneNumber);
     }
 
@@ -177,23 +183,32 @@ function setupEventHandlers(sock, saveCreds, usePairingCode, phoneNumber) {
     }
   });
 
-  // Handle messages with session protection
+  // Handle messages with session protection and connection state check
   sock.ev.on('messages.upsert', (m) => {
     try {
+      // Only process messages if connection is stable and ready
+      if (!sock.isConnected || !sock.shouldProcessMessages) {
+        logger.debug('Skipping message processing - connection not ready');
+        return;
+      }
+
       // Filter out messages that might cause session issues
       const validMessages = m.messages.filter(msg => {
         // Skip messages from status broadcasts
         if (msg.key.remoteJid === 'status@broadcast') return false;
         // Skip messages without proper content
         if (!msg.message) return false;
+        // Skip own messages to prevent loops
+        if (msg.key.fromMe) return false;
         return true;
       });
 
       if (validMessages.length > 0) {
+        logger.info(`📨 Processing ${validMessages.length} new message(s)`);
         sock.ev.emit('message.upsert', { messages: validMessages, type: m.type });
       }
     } catch (error) {
-      logger.debug('Message processing error:', error.message);
+      logger.warn('Message processing error:', error.message);
     }
   });
 

@@ -5,6 +5,13 @@
 import { logger } from '../services/logger.js';
 
 export function setupMessageHandler(conn) {
+  if (!conn) {
+    logger.error('❌ Connection not provided to message handler');
+    return;
+  }
+
+  logger.info('📱 Setting up message handler...');
+  
   conn.ev.on('messages.upsert', async ({ messages, type }) => {
     try {
       if (type !== 'notify') return;
@@ -23,11 +30,15 @@ export function setupMessageHandler(conn) {
           text: getMessageText(message.message)
         };
         
-        logger.debug(`Message from ${m.pushName}: ${m.text}`);
+        logger.info(`📨 Message from ${m.pushName}: ${m.text}`);
         
         // Process commands if text starts with common prefixes
         if (m.text && (m.text.startsWith('.') || m.text.startsWith('/') || m.text.startsWith('!'))) {
+          logger.info(`🔧 Processing command: ${m.text}`);
           await processCommand(conn, m);
+        } else if (m.text) {
+          // Process regular messages  
+          logger.debug(`💬 Regular message: ${m.text.substring(0, 50)}...`);
         }
       }
     } catch (error) {
