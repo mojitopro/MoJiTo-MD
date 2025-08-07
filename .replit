@@ -1,0 +1,41 @@
+modules = ["nodejs-20", "bash"]
+
+[nix]
+channel = "stable-25_05"
+packages = ["curl"]
+
+[workflows]
+runButton = "MoJiTo Bot"
+
+[[workflows.workflow]]
+name = "Project"
+mode = "parallel"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "WhatsApp Bot Server"
+
+[[workflows.workflow]]
+name = "WhatsApp Bot Server"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "npm install && node index.js"
+waitForPort = 5000
+
+[[workflows.workflow]]
+name = "MoJiTo Bot"
+author = 46119693
+mode = "sequential"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "node index.js"
+
+[agent]
+expertMode = true
+
+[[ports]]
+localPort = 5000
