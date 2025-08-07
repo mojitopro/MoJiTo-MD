@@ -241,19 +241,19 @@ function setupEventHandlers(sock, saveCreds, usePairingCode, phoneNumber) {
  * Display QR code with clear instructions
  */
 function handleQRDisplay(qr) {
-  console.log('\n' + '═'.repeat(60));
-  console.log('📱 ESCANEA ESTE CÓDIGO QR CON WHATSAPP');
-  console.log('═'.repeat(60));
+  console.log('\n' + '═'.repeat(50));
+  console.log('📱 CÓDIGO QR PARA WHATSAPP');
+  console.log('═'.repeat(50));
   
-  qrcode.generate(qr, { small: true });
+  // QR muy pequeño para que quepa en pantalla
+  qrcode.generate(qr, { small: true, width: 40 });
   
-  console.log('═'.repeat(60));
-  console.log('📋 INSTRUCCIONES:');
-  console.log('1. Abre WhatsApp en tu teléfono');
-  console.log('2. Ve a Configuración > Dispositivos vinculados');
-  console.log('3. Toca "Vincular un dispositivo"');
-  console.log('4. Escanea este código QR');
-  console.log('═'.repeat(60) + '\n');
+  console.log('═'.repeat(50));
+  console.log('📋 PASOS:');
+  console.log('1. WhatsApp > Configuración');
+  console.log('2. Dispositivos vinculados');
+  console.log('3. Escanear código');
+  console.log('═'.repeat(50) + '\n');
 }
 
 /**
