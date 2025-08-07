@@ -12,13 +12,25 @@ export function setupMessageHandler(conn) {
 
   logger.info('📱 Setting up message handler...');
   
+  // Listen to both events to ensure compatibility
+  conn.ev.on('messages.upsert', async ({ messages, type }) => {
+    logger.info(`📨 Direct message handler: ${messages.length} messages, type: ${type}`);
+    await handleMessages(conn, messages, type);
+  });
+  
   conn.ev.on('message.handler', async ({ messages, type }) => {
-    try {
-      logger.info(`🔧 Message handler activated with ${messages.length} messages of type: ${type}`);
-      if (type !== 'notify') {
-        logger.debug(`Skipping non-notify message type: ${type}`);
-        return;
-      }
+    logger.info(`📨 Custom message handler: ${messages.length} messages, type: ${type}`);
+    await handleMessages(conn, messages, type);
+  });
+}
+
+async function handleMessages(conn, messages, type) {
+  try {
+    logger.info(`🔧 Message handler activated with ${messages.length} messages of type: ${type}`);
+    if (type !== 'notify') {
+      logger.debug(`Skipping non-notify message type: ${type}`);
+      return;
+    }
       
       for (const message of messages) {
         logger.info(`📝 Processing message: ${JSON.stringify({ 
@@ -64,12 +76,11 @@ export function setupMessageHandler(conn) {
             await conn.sendMessage(m.sender, { text: '👋 ¡Hola! El bot está funcionando correctamente.\n\nUsa .ping para probar comandos' });
           }
           logger.debug(`💬 Regular message: ${m.text.substring(0, 50)}...`);
-        }
       }
-    } catch (error) {
-      logger.error('Error processing message:', error);
     }
-  });
+  } catch (error) {
+    logger.error('Error processing message:', error);
+  }
 }
 
 function getMessageText(message) {

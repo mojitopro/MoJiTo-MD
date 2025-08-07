@@ -38,10 +38,13 @@ export async function startBot() {
     const plugins = await loadPlugins();
     logger.info(`✅ Loaded ${plugins.length} plugins`);
 
-    // Setup message and event handlers
-    setupMessageHandler(connection);
+    // Setup event handlers first
     setupEventHandlers(connection);
     logger.info('✅ Event handlers registered');
+    
+    // Setup message handler after connection is stable
+    setupMessageHandler(connection);
+    logger.info('✅ Message handler configured');
 
     // Start cleanup service
     startCleanupService();
