@@ -12,19 +12,49 @@ if (!existsSync(logsDir)) {
   mkdirSync(logsDir, { recursive: true });
 }
 
-// Create logger instance with simple configuration for stability
-const logger = pino({
-  level: process.env.DEBUG === 'true' ? 'debug' : 'info',
-  transport: {
-    target: 'pino-pretty',
-    options: {
-      colorize: true,
-      translateTime: 'HH:MM:ss',
-      ignore: 'pid,hostname',
-      messageFormat: '{msg}'
-    }
+// Create logger instance with environment-compatible configuration
+let logger;
+
+// Check if we can use worker threads (required for pino transports)
+const canUseWorkers = (() => {
+  try {
+    // Test if worker threads are available
+    require.resolve('worker_threads');
+    return true;
+  } catch {
+    return false;
   }
-});
+})();
+
+if (canUseWorkers) {
+  try {
+    // Use pino-pretty transport if worker threads are available
+    logger = pino({
+      level: process.env.DEBUG === 'true' ? 'debug' : 'info',
+      transport: {
+        target: 'pino-pretty',
+        options: {
+          colorize: true,
+          translateTime: 'HH:MM:ss',
+          ignore: 'pid,hostname',
+          messageFormat: '{msg}'
+        }
+      }
+    });
+  } catch (error) {
+    // Fallback if transport fails
+    logger = pino({
+      level: process.env.DEBUG === 'true' ? 'debug' : 'info'
+    });
+  }
+} else {
+  // Use basic logger without transport for environments without worker threads
+  logger = pino({
+    level: process.env.DEBUG === 'true' ? 'debug' : 'info',
+    base: null,
+    timestamp: () => `,"time":"${new Date().toLocaleTimeString()}"`
+  });
+}
 
 // Add custom methods for better UX
 const originalError = logger.error.bind(logger);
