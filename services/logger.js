@@ -15,20 +15,24 @@ if (!existsSync(logsDir)) {
 // Create logger instance with environment-compatible configuration
 let logger;
 
-// Check if we can use worker threads (required for pino transports)
-const canUseWorkers = (() => {
-  try {
-    // Test if worker threads are available
-    require.resolve('worker_threads');
-    return true;
-  } catch {
-    return false;
-  }
-})();
+// Detect Termux and other restricted environments
+const isRestrictedEnvironment = process.env.PREFIX && process.env.PREFIX.includes('com.termux') || 
+                               process.platform === 'android' ||
+                               !process.env.REPLIT;
 
-if (canUseWorkers) {
+if (isRestrictedEnvironment) {
+  // Use simple logger for restricted environments (Termux, Android, etc.)
+  logger = pino({
+    level: process.env.DEBUG === 'true' ? 'debug' : 'info',
+    base: null,
+    timestamp: () => `,"time":"${new Date().toLocaleTimeString()}"`,
+    formatters: {
+      level: (label) => ({ level: label })
+    }
+  });
+} else {
+  // Try advanced logger with transport for supported environments
   try {
-    // Use pino-pretty transport if worker threads are available
     logger = pino({
       level: process.env.DEBUG === 'true' ? 'debug' : 'info',
       transport: {
@@ -42,18 +46,12 @@ if (canUseWorkers) {
       }
     });
   } catch (error) {
-    // Fallback if transport fails
+    // Final fallback to basic logger
     logger = pino({
-      level: process.env.DEBUG === 'true' ? 'debug' : 'info'
+      level: process.env.DEBUG === 'true' ? 'debug' : 'info',
+      base: null
     });
   }
-} else {
-  // Use basic logger without transport for environments without worker threads
-  logger = pino({
-    level: process.env.DEBUG === 'true' ? 'debug' : 'info',
-    base: null,
-    timestamp: () => `,"time":"${new Date().toLocaleTimeString()}"`
-  });
 }
 
 // Add custom methods for better UX
