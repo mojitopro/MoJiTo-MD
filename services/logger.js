@@ -12,26 +12,13 @@ if (!existsSync(logsDir)) {
   mkdirSync(logsDir, { recursive: true });
 }
 
-// Create logger instance with environment-compatible configuration
+// Create logger instance with safe configuration
 let logger;
 
-// Detect Termux and other restricted environments
-const isRestrictedEnvironment = process.env.PREFIX && process.env.PREFIX.includes('com.termux') || 
-                               process.platform === 'android' ||
-                               !process.env.REPLIT;
-
-if (isRestrictedEnvironment) {
-  // Use simple logger for restricted environments (Termux, Android, etc.)
-  logger = pino({
-    level: process.env.DEBUG === 'true' ? 'debug' : 'info',
-    base: null,
-    timestamp: () => `,"time":"${new Date().toLocaleTimeString()}"`,
-    formatters: {
-      level: (label) => ({ level: label })
-    }
-  });
-} else {
-  // Try advanced logger with transport for supported environments
+// Use simple logger by default to avoid worker thread issues
+// Only use transport if explicitly in Replit environment
+if (process.env.REPLIT && process.env.REPLIT_DB_URL) {
+  // We're definitely in Replit, safe to use transport
   try {
     logger = pino({
       level: process.env.DEBUG === 'true' ? 'debug' : 'info',
@@ -46,12 +33,22 @@ if (isRestrictedEnvironment) {
       }
     });
   } catch (error) {
-    // Final fallback to basic logger
+    // Fallback to basic logger
     logger = pino({
       level: process.env.DEBUG === 'true' ? 'debug' : 'info',
       base: null
     });
   }
+} else {
+  // Use basic logger for all other environments (Termux, local dev, etc.)
+  logger = pino({
+    level: process.env.DEBUG === 'true' ? 'debug' : 'info',
+    base: null,
+    timestamp: () => `,"time":"${new Date().toLocaleTimeString()}"`,
+    formatters: {
+      level: (label) => ({ level: label })
+    }
+  });
 }
 
 // Add custom methods for better UX
