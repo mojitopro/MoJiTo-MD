@@ -238,8 +238,58 @@ function setupEventHandlers(sock, saveCreds, usePairingCode, phoneNumber) {
 
       if (validMessages.length > 0) {
         logger.info(`📨 Processing ${validMessages.length} new message(s)`);
-        // Direct emit without re-entering the loop
-        sock.ev.emit('message.handler', { messages: validMessages, type: m.type });
+        // Process messages directly in the connection handler
+        for (const msg of validMessages) {
+          try {
+            // Process message in async context
+            (async () => {
+            const text = msg.message?.conversation || 
+                        msg.message?.extendedTextMessage?.text || 
+                        msg.message?.imageMessage?.caption || 
+                        msg.message?.videoMessage?.caption || '';
+            
+            logger.info(`📨 Message from ${msg.pushName || 'Unknown'}: "${text}"`);
+            
+            // Handle commands directly
+            if (text && (text.startsWith('.') || text.startsWith('/') || text.startsWith('!'))) {
+              const command = text.slice(1).split(' ')[0].toLowerCase();
+              logger.info(`🚀 EXECUTING COMMAND: ${command}`);
+              
+              switch (command) {
+                case 'ping':
+                case 'p':
+                  await sock.sendMessage(msg.key.remoteJid, { text: '🏓 Pong! Bot funcionando correctamente!' });
+                  logger.info('✅ Ping command executed');
+                  break;
+                  
+                case 'bot':
+                case 'info':
+                  const uptime = process.uptime();
+                  const info = `🤖 *MoJiTo Bot*\n\n⏰ *Tiempo activo:* ${Math.floor(uptime / 60)} minutos\n💾 *Memoria:* ${(process.memoryUsage().heapUsed / 1024 / 1024).toFixed(2)} MB\n🔗 *Conexión:* Estable\n📱 *Comandos:* .ping, .info`;
+                  await sock.sendMessage(msg.key.remoteJid, { text: info });
+                  logger.info('✅ Info command executed');
+                  break;
+                  
+                case 'test':
+                  await sock.sendMessage(msg.key.remoteJid, { text: '✅ Test exitoso! El bot está funcionando perfectamente.' });
+                  logger.info('✅ Test command executed');
+                  break;
+                  
+                default:
+                  await sock.sendMessage(msg.key.remoteJid, { text: `❓ Comando "${command}" no encontrado.\n\nComandos disponibles:\n• .ping - Probar conexión\n• .info - Información del bot\n• .test - Prueba completa` });
+                  logger.info(`❓ Unknown command: ${command}`);
+              }
+            } else if (text && (text.toLowerCase().includes('hola') || text.toLowerCase().includes('test'))) {
+              await sock.sendMessage(msg.key.remoteJid, { text: '👋 ¡Hola! El bot está funcionando correctamente.\n\nComandos disponibles:\n• .ping\n• .info\n• .test' });
+              logger.info('🤖 Auto-response sent');
+            }
+            })().catch(error => {
+              logger.error(`Error processing message: ${error.message}`);
+            });
+          } catch (error) {
+            logger.error(`Error processing message: ${error.message}`);
+          }
+        }
       }
     } catch (error) {
       logger.debug('Message processing error (filtered)');
