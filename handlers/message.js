@@ -14,12 +14,27 @@ export function setupMessageHandler(conn) {
   
   conn.ev.on('message.handler', async ({ messages, type }) => {
     try {
-      logger.debug(`📨 Message handler received ${messages.length} messages of type: ${type}`);
-      if (type !== 'notify') return;
+      logger.info(`🔧 Message handler activated with ${messages.length} messages of type: ${type}`);
+      if (type !== 'notify') {
+        logger.debug(`Skipping non-notify message type: ${type}`);
+        return;
+      }
       
       for (const message of messages) {
-        if (!message.message) continue;
-        if (message.key.fromMe) continue;
+        logger.info(`📝 Processing message: ${JSON.stringify({ 
+          fromMe: message.key.fromMe, 
+          hasMessage: !!message.message,
+          remoteJid: message.key.remoteJid 
+        })}`);
+        
+        if (!message.message) {
+          logger.debug('Skipping message without content');
+          continue;
+        }
+        if (message.key.fromMe) {
+          logger.debug('Skipping own message');
+          continue;
+        }
         
         // Basic message processing
         const m = {
@@ -31,15 +46,21 @@ export function setupMessageHandler(conn) {
           text: getMessageText(message.message)
         };
         
-        logger.info(`📨 Message from ${m.pushName}: ${m.text || 'Media/Other'}`);
+        logger.info(`📨 Message from ${m.pushName}: "${m.text || 'Media/Other'}"`);
         
         // Process commands if text starts with common prefixes
         if (m.text && (m.text.startsWith('.') || m.text.startsWith('/') || m.text.startsWith('!'))) {
-          logger.info(`🔧 Executing command: ${m.text}`);
-          await processCommand(conn, m);
+          logger.info(`🚀 EXECUTING COMMAND: ${m.text}`);
+          try {
+            await processCommand(conn, m);
+            logger.info(`✅ Command executed successfully: ${m.text}`);
+          } catch (error) {
+            logger.error(`❌ Command execution failed: ${error.message}`);
+          }
         } else if (m.text) {
           // Auto-respond to test messages
           if (m.text.toLowerCase().includes('test') || m.text.toLowerCase().includes('hola')) {
+            logger.info('🤖 Auto-responding to greeting');
             await conn.sendMessage(m.sender, { text: '👋 ¡Hola! El bot está funcionando correctamente.\n\nUsa .ping para probar comandos' });
           }
           logger.debug(`💬 Regular message: ${m.text.substring(0, 50)}...`);
