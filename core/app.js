@@ -24,6 +24,10 @@ export async function startBot() {
     await initializeDatabase();
     logger.info('✅ Database initialized');
 
+    // Start HTTP server for Replit compatibility FIRST
+    startHTTPServer(5000);
+    logger.info('✅ HTTP server started on port 5000');
+
     // Initialize WhatsApp connection with fixed system
     const connection = await initializeConnection({
       usePairingCode: process.env.USE_PAIRING_CODE === 'true',
@@ -46,10 +50,6 @@ export async function startBot() {
     // Start cleanup service
     startCleanupService();
     logger.info('✅ Cleanup service started');
-
-    // Start HTTP server for Replit compatibility
-    startHTTPServer(5000);
-    logger.info('✅ HTTP server started on port 5000');
 
     // Setup graceful shutdown
     setupGracefulShutdown();

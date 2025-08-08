@@ -7,6 +7,7 @@ import { logger } from '../services/logger.js';
 
 export async function loadPlugins() {
   const plugins = [];
+  global.plugins = {};
 
   try {
     const pluginDir = join(process.cwd(), 'plugins');
@@ -22,14 +23,17 @@ export async function loadPlugins() {
         const plugin = await import(`file://${pluginPath}?t=${Date.now()}`);
 
         if (plugin.handler || plugin.before || plugin.all) {
-          plugins.push(file.replace('.js', ''));
-          logger.debug(`Loaded plugin: ${file}`);
+          const pluginName = file.replace('.js', '');
+          global.plugins[pluginName] = plugin;
+          plugins.push(pluginName);
+          logger.info(`✅ Plugin loaded: ${file} with command: ${plugin.command}`);
         }
       } catch (error) {
         logger.warn(`Failed to load plugin ${file}:`, error.message);
       }
     }
 
+    logger.info(`🔌 Total plugins loaded: ${plugins.length}`);
     return plugins;
 
   } catch (error) {

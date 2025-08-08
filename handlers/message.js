@@ -43,8 +43,9 @@ async function handleMessages(conn, messages, type) {
           logger.debug('Skipping message without content');
           continue;
         }
-        if (message.key.fromMe) {
-          logger.debug('Skipping own message');
+        // Allow commands from bot owner, skip only non-command messages
+        if (message.key.fromMe && !getMessageText(message.message).match(/^[./#!]/)) {
+          logger.debug('Skipping own non-command message');
           continue;
         }
         
@@ -61,7 +62,7 @@ async function handleMessages(conn, messages, type) {
         logger.info(`📨 Message from ${m.pushName}: "${m.text || 'Media/Other'}"`);
         
         // Process commands if text starts with common prefixes
-        if (m.text && (m.text.startsWith('.') || m.text.startsWith('/') || m.text.startsWith('!'))) {
+        if (m.text && global.prefix.test(m.text)) {
           logger.info(`🚀 EXECUTING COMMAND: ${m.text}`);
           try {
             await processCommand(conn, m);
@@ -93,12 +94,55 @@ function getMessageText(message) {
 
 async function processCommand(conn, m) {
   try {
-    const command = m.text.slice(1).split(' ')[0].toLowerCase();
+    const prefixMatch = m.text.match(global.prefix);
+    if (!prefixMatch) return;
+    
+    const usedPrefix = prefixMatch[0];
+    const command = m.text.slice(usedPrefix.length).split(' ')[0].toLowerCase();
+    const args = m.text.slice(usedPrefix.length + command.length).trim().split(' ').filter(Boolean);
+    
+    logger.info(`🔍 Looking for command: ${command}`);
+    
+    // Enhanced message object for plugins
+    const enhancedM = {
+      ...m,
+      chat: m.sender,
+      sender: m.sender,
+      fromMe: m.key?.fromMe || false,
+      mentionedJid: [],
+      quoted: null,
+      isGroup: m.isGroup,
+      command,
+      usedPrefix,
+      args,
+      text: m.text,
+      body: m.text
+    };
+    
+    // First check if we have loaded plugins
+    if (global.plugins && Object.keys(global.plugins).length > 0) {
+      logger.info(`📦 Checking ${Object.keys(global.plugins).length} plugins for command: ${command}`);
+      
+      for (const [pluginName, plugin] of Object.entries(global.plugins)) {
+        if (plugin.command && plugin.command.test(command)) {
+          logger.info(`✅ Found plugin ${pluginName} for command: ${command}`);
+          try {
+            await plugin.handler(enhancedM, { conn, usedPrefix, command, args });
+            return;
+          } catch (error) {
+            logger.error(`❌ Plugin ${pluginName} failed:`, error);
+          }
+        }
+      }
+    }
+    
+    // Fallback to hardcoded commands if no plugin found
+    logger.info(`🔄 Using fallback commands for: ${command}`);
     
     switch (command) {
       case 'ping':
       case 'p':
-        await conn.sendMessage(m.sender, { text: '🏓 Pong!' });
+        await conn.sendMessage(m.sender, { text: '🏓 Pong! (fallback)' });
         break;
         
       case 'bot':
@@ -111,6 +155,7 @@ async function processCommand(conn, m) {
 💾 *Memoria:* ${(process.memoryUsage().heapUsed / 1024 / 1024).toFixed(2)} MB
 📱 *Versión:* 1.0.0
 👑 *Creador:* Brian Martins
+🔌 *Plugins:* ${global.plugins ? Object.keys(global.plugins).length : 0}
 
 ✅ Bot funcionando correctamente
         `.trim();
@@ -139,6 +184,12 @@ async function processCommand(conn, m) {
           text: `🆔 *ID del chat:* ${m.sender}\n📱 *Tu nombre:* ${m.pushName}` 
         });
         break;
+        
+      default:
+        logger.warn(`❓ Unknown command: ${command}`);
+        await conn.sendMessage(m.sender, { 
+          text: `❓ Comando no encontrado: *${usedPrefix}${command}*\n\nUsa *${usedPrefix}menu* para ver los comandos disponibles.`
+        });
     }
   } catch (error) {
     logger.error('Error processing command:', error);

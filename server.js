@@ -123,6 +123,7 @@ export function startHTTPServer(port = 5000) {
 
   server.listen(port, '0.0.0.0', () => {
     logger.success(`HTTP server running on port ${port}`);
+    console.log(`Server is now listening on http://0.0.0.0:${port}`);
   });
 
   server.on('error', (error) => {
