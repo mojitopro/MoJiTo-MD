@@ -3,6 +3,9 @@
  * Message handling and processing
  */
 import { logger } from '../services/logger.js';
+// import { printMessage, printBotEvent } from '../utils/print.js';
+import { getMessageText, getMessageType } from '../utils/message-helpers.js';
+import chalk from 'chalk';
 
 export function setupMessageHandler(conn) {
   if (!conn) {
@@ -49,26 +52,38 @@ async function handleMessages(conn, messages, type) {
           continue;
         }
         
-        // Basic message processing
+        // Enhanced message processing with print system
         const m = {
           key: message.key,
           message: message.message,
+          msg: message.message,
           pushName: message.pushName || 'Unknown',
           sender: message.key.remoteJid,
+          chat: message.key.remoteJid,
           isGroup: message.key.remoteJid.endsWith('@g.us'),
-          text: getMessageText(message.message)
+          text: getMessageText(message.message),
+          mtype: getMessageType(message.message),
+          mentionedJid: message.message?.extendedTextMessage?.contextInfo?.mentionedJid || []
         };
         
-        logger.info(`📨 Message from ${m.pushName}: "${m.text || 'Media/Other'}"`);
+        // Simplified styled console output (temporary)
+        console.log(chalk.cyanBright('┌─────────────────────────────'));
+        console.log(chalk.cyanBright(`│ 📤 De: `) + chalk.green(m.pushName));
+        console.log(chalk.cyanBright(`│ 🧭 Chat: `) + chalk.yellow(m.isGroup ? 'Grupo' : 'Privado'));
+        console.log(chalk.cyanBright(`│ 🕒 Hora: `) + chalk.magenta(new Date().toLocaleTimeString()));
+        console.log(chalk.cyanBright(`│ 🗂️ Tipo: `) + chalk.blueBright(m.mtype?.toUpperCase() || 'UNKNOWN'));
+        if (m.text) console.log(chalk.cyanBright(`│ 💬 Texto: `) + chalk.whiteBright(m.text.slice(0, 100)));
+        console.log(chalk.cyanBright('└─────────────────────────────'));
         
         // Process commands if text starts with common prefixes
         if (m.text && global.prefix.test(m.text)) {
-          logger.info(`🚀 EXECUTING COMMAND: ${m.text}`);
+          console.log(chalk.magentaBright('🚀 ') + chalk.white(`[${new Date().toLocaleTimeString()}] Comando ejecutado: `) + chalk.cyan(m.text));
           try {
             await processCommand(conn, m);
             logger.info(`✅ Command executed successfully: ${m.text}`);
           } catch (error) {
             logger.error(`❌ Command execution failed: ${error.message}`);
+            console.log(chalk.redBright('❌ ') + chalk.white(`[${new Date().toLocaleTimeString()}] Error: `) + chalk.red(error.message));
           }
         } else if (m.text) {
           // Auto-respond to test messages
@@ -84,13 +99,7 @@ async function handleMessages(conn, messages, type) {
   }
 }
 
-function getMessageText(message) {
-  return message.conversation || 
-         message.extendedTextMessage?.text || 
-         message.imageMessage?.caption || 
-         message.videoMessage?.caption || 
-         '';
-}
+// Message helpers moved to utils/message-helpers.js
 
 async function processCommand(conn, m) {
   try {
