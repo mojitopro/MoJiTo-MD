@@ -182,13 +182,9 @@ function setupEventHandlers(sock, saveCreds, usePairingCode, phoneNumber) {
       await handleDisconnection(lastDisconnect, usePairingCode, phoneNumber);
     }
 
-    // Log connection state changes
-    if (connection) {
-      logger.info(`🔄 Connection state: ${connection}`);
-    }
-
-    if (typeof isOnline === 'boolean') {
-      logger.debug(`📡 Status: ${isOnline ? 'Online' : 'Offline'}`);
+    // Reduce console spam - only log important state changes
+    if (connection === 'open' || connection === 'close') {
+      logger.info(`🔄 Connection: ${connection}`);
     }
   });
 
@@ -237,7 +233,7 @@ function setupEventHandlers(sock, saveCreds, usePairingCode, phoneNumber) {
       });
 
       if (validMessages.length > 0) {
-        logger.info(`📨 Processing ${validMessages.length} new message(s)`);
+        // Reduce spam - only log commands, not all messages
         
         // Process messages with bulletproof command system
         for (const msg of validMessages) {
@@ -249,12 +245,10 @@ function setupEventHandlers(sock, saveCreds, usePairingCode, phoneNumber) {
               
               if (!text) return;
               
-              logger.info(`📨 Message: "${text}"`);
-              
-              // Command processing
+              // Command processing - only log commands to reduce spam
               if (text.startsWith('.') || text.startsWith('/') || text.startsWith('!')) {
                 const command = text.slice(1).split(' ')[0].toLowerCase();
-                logger.info(`🚀 COMMAND: ${command}`);
+                logger.info(`🚀 Command: ${command}`); // Reduced spam
                 
                 try {
                   switch (command) {
@@ -263,7 +257,6 @@ function setupEventHandlers(sock, saveCreds, usePairingCode, phoneNumber) {
                       await sock.sendMessage(msg.key.remoteJid, { 
                         text: '🏓 Pong! Bot funcionando perfectamente!' 
                       });
-                      logger.info('✅ Ping executed');
                       break;
                       
                     case 'bot':
@@ -273,14 +266,12 @@ function setupEventHandlers(sock, saveCreds, usePairingCode, phoneNumber) {
                       await sock.sendMessage(msg.key.remoteJid, { 
                         text: `🤖 *MoJiTo Bot*\n\n⏰ Activo: ${uptime} min\n💾 Memoria: ${memory} MB\n🔗 Estado: Conectado\n📱 Comandos: .ping .info .test`
                       });
-                      logger.info('✅ Info executed');
                       break;
                       
                     case 'test':
                       await sock.sendMessage(msg.key.remoteJid, { 
                         text: '✅ Test exitoso!\n\nBot funcionando al 100%' 
                       });
-                      logger.info('✅ Test executed');
                       break;
                       
                     default:
@@ -291,11 +282,6 @@ function setupEventHandlers(sock, saveCreds, usePairingCode, phoneNumber) {
                 } catch (cmdError) {
                   logger.error(`Command error: ${cmdError.message}`);
                 }
-              } else if (text.toLowerCase().includes('hola')) {
-                await sock.sendMessage(msg.key.remoteJid, { 
-                  text: '👋 ¡Hola! Bot funcionando.\n\nComandos: .ping .info .test'
-                });
-                logger.info('🤖 Auto-response sent');
               }
             } catch (error) {
               logger.error(`Message error: ${error.message}`);
@@ -317,17 +303,9 @@ function setupEventHandlers(sock, saveCreds, usePairingCode, phoneNumber) {
     }
   });
 
-  // Handle message receipts to prevent session issues
-  sock.ev.on('message-receipt.update', (receipts) => {
-    // Silently handle receipts without emitting to prevent session conflicts
-    logger.debug(`Received ${receipts.length} message receipts`);
-  });
-
-  // Handle presence updates
-  sock.ev.on('presence.update', (presence) => {
-    // Silently handle presence to prevent session conflicts
-    logger.debug(`Presence update for ${presence.id}`);
-  });
+  // Handle message receipts and presence silently to prevent session conflicts
+  sock.ev.on('message-receipt.update', () => {});
+  sock.ev.on('presence.update', () => {});
 
   // Store global reference
   global.conn = sock;
@@ -420,41 +398,51 @@ function handlePairingCodeDisplay(code, phoneNumber) {
 }
 
 /**
- * Handle disconnection with smart reconnection
+ * Handle disconnection with smart reconnection - FIXED for session persistence
  */
 async function handleDisconnection(lastDisconnect, usePairingCode, phoneNumber) {
   const reason = lastDisconnect?.error?.output?.statusCode;
   const reasonText = getDisconnectReasonText(reason);
   
-  logger.warn(`🔌 Disconnected: ${reasonText} (${reason})`);
+  // Reduce console spam - only log significant disconnections
+  if (reason !== DisconnectReason.connectionClosed && reason !== DisconnectReason.timedOut) {
+    logger.warn(`🔌 Disconnected: ${reasonText}`);
+  }
 
   switch (reason) {
     case DisconnectReason.loggedOut:
-      logger.warn('🚪 Logged out, clearing session...');
-      await clearAuthState();
-      setTimeout(() => restartConnection(usePairingCode, phoneNumber), 5000);
+      // CRITICAL FIX: Don't clear session immediately on 401 - it might be temporary
+      // Only clear after multiple failed attempts
+      if (reconnectAttempts >= 3) {
+        logger.warn('🚪 Multiple login failures, clearing session...');
+        await clearAuthState();
+        setTimeout(() => restartConnection(usePairingCode, phoneNumber), 5000);
+      } else {
+        logger.info('🔄 Login issue, retrying without clearing session...');
+        await attemptReconnection(usePairingCode, phoneNumber, 3000);
+      }
       break;
 
     case DisconnectReason.restartRequired:
-      logger.info('🔄 Restart required');
       setTimeout(() => restartConnection(usePairingCode, phoneNumber), 3000);
       break;
 
     case DisconnectReason.connectionClosed:
     case DisconnectReason.connectionLost:
     case DisconnectReason.timedOut:
-      await attemptReconnection(usePairingCode, phoneNumber);
+      // Quick reconnection for network issues
+      await attemptReconnection(usePairingCode, phoneNumber, 2000);
       break;
 
     case DisconnectReason.badSession:
-      logger.warn('🧹 Bad session, cleaning up...');
+      // Only clear session if explicitly bad session
+      logger.warn('🧹 Bad session detected, cleaning up...');
       await clearAuthState();
       setTimeout(() => restartConnection(usePairingCode, phoneNumber), 5000);
       break;
 
     default:
-      logger.error('❌ Unrecoverable error');
-      await attemptReconnection(usePairingCode, phoneNumber, 10000);
+      await attemptReconnection(usePairingCode, phoneNumber, 5000);
       break;
   }
 }
@@ -604,33 +592,42 @@ function createBaileysLogger() {
 async function clearAuthState() {
   try {
     if (fs.existsSync(authStateFolder)) {
-      // Clear only problematic files, keep valid session data
+      // CONSERVATIVE session cleanup - preserve as much as possible
       const files = fs.readdirSync(authStateFolder);
+      let hasValidCreds = false;
+      
+      // Check if we have valid credentials first
       for (const file of files) {
-        const filePath = path.join(authStateFolder, file);
-        try {
-          // Remove only if file is corrupted or causing issues
-          if (file.includes('session-') || file.includes('sender-key-')) {
-            fs.unlinkSync(filePath);
-          }
-        } catch (fileError) {
-          // If we can't read/remove individual files, remove the entire folder
-          fs.rmSync(authStateFolder, { recursive: true, force: true });
-          break;
+        if (file === 'creds.json') {
+          try {
+            const credsPath = path.join(authStateFolder, file);
+            const creds = JSON.parse(fs.readFileSync(credsPath, 'utf8'));
+            if (creds.me && creds.me.id) {
+              hasValidCreds = true;
+              break;
+            }
+          } catch {}
         }
       }
-      logger.info('🧹 Auth state cleaned');
+      
+      if (hasValidCreds) {
+        // Only remove problematic session files, keep credentials
+        for (const file of files) {
+          if (file.includes('sender-key-memory') || file.includes('session-memory')) {
+            try {
+              fs.unlinkSync(path.join(authStateFolder, file));
+            } catch {}
+          }
+        }
+        logger.info('🧹 Cleaned session cache, preserved credentials');
+      } else {
+        // Only clear everything if no valid credentials found
+        fs.rmSync(authStateFolder, { recursive: true, force: true });
+        logger.info('🧹 Full auth state cleared');
+      }
     }
   } catch (error) {
-    logger.error('Error clearing auth state:', error.message);
-    // Force removal if selective cleaning fails
-    try {
-      if (fs.existsSync(authStateFolder)) {
-        fs.rmSync(authStateFolder, { recursive: true, force: true });
-      }
-    } catch (forceError) {
-      logger.error('Force cleanup failed:', forceError.message);
-    }
+    logger.debug('Session cleanup error:', error.message);
   }
 }
 

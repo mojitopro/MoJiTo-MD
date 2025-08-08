@@ -9,27 +9,6 @@ packages = ["curl"]
 runButton = "Project"
 
 [[workflows.workflow]]
-name = "Project"
-mode = "parallel"
-author = "agent"
-
-[[workflows.workflow.tasks]]
-task = "workflow.run"
-args = "WhatsApp Bot Server"
-
-[[workflows.workflow]]
-name = "WhatsApp Bot Server"
-author = "agent"
-
-[workflows.workflow.metadata]
-outputType = "console"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "node index.js"
-waitForPort = 5000
-
-[[workflows.workflow]]
 name = "MoJiTo Bot"
 author = 46119693
 mode = "sequential"
@@ -37,6 +16,26 @@ mode = "sequential"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "node index.js"
+
+[[workflows.workflow]]
+name = "Project"
+mode = "parallel"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "MoJiTo Bot - Optimized"
+
+[[workflows.workflow]]
+name = "MoJiTo Bot - Optimized"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "node index.js"
+
+[workflows.workflow.metadata]
+outputType = "console"
 
 [agent]
 expertMode = true

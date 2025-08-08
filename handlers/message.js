@@ -3,7 +3,7 @@
  * Message handling and processing
  */
 import { logger } from '../services/logger.js';
-// import { printMessage, printBotEvent } from '../utils/print.js';
+// Temporarily disabled: import { printMessage, printBotEvent } from '../utils/print.js';
 import { getMessageText, getMessageType } from '../utils/message-helpers.js';
 import chalk from 'chalk';
 
@@ -29,30 +29,18 @@ export function setupMessageHandler(conn) {
 
 async function handleMessages(conn, messages, type) {
   try {
-    logger.info(`🔧 Message handler activated with ${messages.length} messages of type: ${type}`);
-    if (type !== 'notify') {
-      logger.debug(`Skipping non-notify message type: ${type}`);
-      return;
-    }
+    // Reduced spam - only log significant events
+    if (type !== 'notify') return;
       
       for (const message of messages) {
-        logger.info(`📝 Processing message: ${JSON.stringify({ 
-          fromMe: message.key.fromMe, 
-          hasMessage: !!message.message,
-          remoteJid: message.key.remoteJid 
-        })}`);
+        if (!message.message) continue;
         
-        if (!message.message) {
-          logger.debug('Skipping message without content');
-          continue;
-        }
         // Allow commands from bot owner, skip only non-command messages
         if (message.key.fromMe && !getMessageText(message.message).match(/^[./#!]/)) {
-          logger.debug('Skipping own non-command message');
           continue;
         }
         
-        // Enhanced message processing with print system
+        // Enhanced message processing - basic version
         const m = {
           key: message.key,
           message: message.message,
@@ -66,33 +54,26 @@ async function handleMessages(conn, messages, type) {
           mentionedJid: message.message?.extendedTextMessage?.contextInfo?.mentionedJid || []
         };
         
-        // Simplified styled console output (temporary)
-        console.log(chalk.cyanBright('┌─────────────────────────────'));
-        console.log(chalk.cyanBright(`│ 📤 De: `) + chalk.green(m.pushName));
-        console.log(chalk.cyanBright(`│ 🧭 Chat: `) + chalk.yellow(m.isGroup ? 'Grupo' : 'Privado'));
-        console.log(chalk.cyanBright(`│ 🕒 Hora: `) + chalk.magenta(new Date().toLocaleTimeString()));
-        console.log(chalk.cyanBright(`│ 🗂️ Tipo: `) + chalk.blueBright(m.mtype?.toUpperCase() || 'UNKNOWN'));
-        if (m.text) console.log(chalk.cyanBright(`│ 💬 Texto: `) + chalk.whiteBright(m.text.slice(0, 100)));
-        console.log(chalk.cyanBright('└─────────────────────────────'));
-        
-        // Process commands if text starts with common prefixes
+        // Basic console output (temporary)
         if (m.text && global.prefix.test(m.text)) {
-          console.log(chalk.magentaBright('🚀 ') + chalk.white(`[${new Date().toLocaleTimeString()}] Comando ejecutado: `) + chalk.cyan(m.text));
+          console.log(chalk.green('📨 ') + chalk.white(`Command: ${m.text} from ${m.pushName}`));
+        } else if (m.text) {
+          console.log(chalk.blue('💬 ') + chalk.gray(`Message from ${m.pushName}: ${m.text.slice(0, 50)}...`));
+        }
+        
+        // Process commands
+        if (m.text && global.prefix.test(m.text)) {
           try {
             await processCommand(conn, m);
-            logger.info(`✅ Command executed successfully: ${m.text}`);
           } catch (error) {
-            logger.error(`❌ Command execution failed: ${error.message}`);
-            console.log(chalk.redBright('❌ ') + chalk.white(`[${new Date().toLocaleTimeString()}] Error: `) + chalk.red(error.message));
+            logger.error('Command error:', error.message);
           }
         } else if (m.text) {
-          // Auto-respond to test messages
+          // Auto-respond to greetings
           if (m.text.toLowerCase().includes('test') || m.text.toLowerCase().includes('hola')) {
-            logger.info('🤖 Auto-responding to greeting');
-            await conn.sendMessage(m.sender, { text: '👋 ¡Hola! El bot está funcionando correctamente.\n\nUsa .ping para probar comandos' });
+            await conn.sendMessage(m.sender, { text: '👋 ¡Hola! Bot funcionando.\n\nComandos: .ping .info .menu' });
           }
-          logger.debug(`💬 Regular message: ${m.text.substring(0, 50)}...`);
-      }
+        }
     }
   } catch (error) {
     logger.error('Error processing message:', error);
@@ -110,8 +91,6 @@ async function processCommand(conn, m) {
     const command = m.text.slice(usedPrefix.length).split(' ')[0].toLowerCase();
     const args = m.text.slice(usedPrefix.length + command.length).trim().split(' ').filter(Boolean);
     
-    logger.info(`🔍 Looking for command: ${command}`);
-    
     // Enhanced message object for plugins
     const enhancedM = {
       ...m,
@@ -128,25 +107,21 @@ async function processCommand(conn, m) {
       body: m.text
     };
     
-    // First check if we have loaded plugins
+    // Check loaded plugins
     if (global.plugins && Object.keys(global.plugins).length > 0) {
-      logger.info(`📦 Checking ${Object.keys(global.plugins).length} plugins for command: ${command}`);
-      
       for (const [pluginName, plugin] of Object.entries(global.plugins)) {
         if (plugin.command && plugin.command.test(command)) {
-          logger.info(`✅ Found plugin ${pluginName} for command: ${command}`);
           try {
             await plugin.handler(enhancedM, { conn, usedPrefix, command, args });
             return;
           } catch (error) {
-            logger.error(`❌ Plugin ${pluginName} failed:`, error);
+            logger.debug(`Plugin ${pluginName} error:`, error.message);
           }
         }
       }
     }
     
     // Fallback to hardcoded commands if no plugin found
-    logger.info(`🔄 Using fallback commands for: ${command}`);
     
     switch (command) {
       case 'ping':

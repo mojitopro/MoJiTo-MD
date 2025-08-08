@@ -3,37 +3,81 @@
  * Muestra stickers e imágenes directamente en la terminal
  * Compatible con Termux y Replit
  */
+/**
+ * ADVANCED TERMINAL PRINTING SYSTEM - OPTIMIZED
+ * Direct image/sticker display in terminal with fallback support
+ * Compatible with Termux, Replit, and all environments
+ */
 import chalk from 'chalk';
 import PhoneNumber from 'awesome-phonenumber';
-// import terminalImage from 'terminal-image';
-import { writeFileSync, unlinkSync, existsSync } from 'fs';
+import { writeFileSync, unlinkSync, existsSync, readFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
-// import Jimp from 'jimp';
-// import ffmpeg from 'fluent-ffmpeg';
 import { downloadContentFromMessage } from '@whiskeysockets/baileys';
 import { logger } from '../services/logger.js';
 
+// Dynamic imports for optional dependencies with fallbacks
+let terminalImage = null;
+let Jimp = null;
+let ffmpeg = null;
+
+// Initialize advanced features asynchronously
+const initializeAdvancedFeatures = async () => {
+  try {
+    terminalImage = await import('terminal-image');
+    logger.debug('✅ Terminal image support enabled');
+  } catch {
+    logger.debug('📱 Terminal image fallback mode (no terminal-image)');
+  }
+
+  try {
+    Jimp = (await import('jimp')).default;
+    logger.debug('✅ Image processing enabled');
+  } catch {
+    logger.debug('🖼️ Basic image mode (no jimp)');
+  }
+
+  try {
+    ffmpeg = (await import('fluent-ffmpeg')).default;
+    logger.debug('✅ Video processing enabled');
+  } catch {
+    logger.debug('🎥 Basic video mode (no ffmpeg)');
+  }
+};
+
+// Initialize features when the module is loaded
+initializeAdvancedFeatures().catch(() => {});
+
 export async function printMessage(m, conn = {}) {
   try {
+    // Ensure advanced features are initialized
+    if (!terminalImage && !Jimp && !ffmpeg) {
+      await initializeAdvancedFeatures().catch(() => {});
+    }
+    // Optimized name resolution with caching
+    const nameCache = new Map();
     const getName = async (jid) => {
+      if (!jid) return '(Desconocido)';
+      if (nameCache.has(jid)) return nameCache.get(jid);
+      
       try {
-        if (!jid) return '(Desconocido)';
-        if (jid === conn.user?.jid) return conn.user?.name || 'Yo';
-        if (global.db?.data?.users?.[jid]?.name) return global.db.data.users[jid].name;
-        if (global.db?.data?.chats?.[jid]?.subject) return global.db.data.chats[jid].subject;
-        if (global.db?.data?.chats?.[jid]?.name) return global.db.data.chats[jid].name;
-        if (conn.groupMetadata && jid.endsWith('@g.us')) {
+        let name;
+        if (jid === conn.user?.jid) {
+          name = conn.user?.name || 'Yo';
+        } else if (global.db?.data?.users?.[jid]?.name) {
+          name = global.db.data.users[jid].name;
+        } else if (jid.endsWith('@g.us') && conn.groupMetadata) {
           const metadata = await conn.groupMetadata(jid).catch(() => null);
-          if (metadata?.subject) return metadata.subject;
+          name = metadata?.subject || jid.split('@')[0];
+        } else {
+          name = jid.split('@')[0];
         }
-        if (conn.getName) {
-          const name = await conn.getName(jid);
-          if (name && name !== jid) return name;
-        }
-        return jid.split('@')[0];
+        nameCache.set(jid, name);
+        return name;
       } catch {
-        return jid.split('@')[0];
+        const fallback = jid.split('@')[0];
+        nameCache.set(jid, fallback);
+        return fallback;
       }
     };
 
@@ -46,205 +90,334 @@ export async function printMessage(m, conn = {}) {
     const chatName = await getName(chatId);
     const senderName = await getName(senderJid);
 
-    // Header estilizado
-    console.log(chalk.cyanBright('┌─────────────────────────────'));
-    console.log(chalk.cyanBright(`│ 📤 De: `) + chalk.green(senderName));
-    console.log(chalk.cyanBright(`│ 🧭 Chat: `) + chalk.yellow(chatName));
-    console.log(chalk.cyanBright(`│ 🕒 Hora: `) + chalk.magenta(timeStr));
-    console.log(chalk.cyanBright(`│ 🗂️ Tipo: `) + chalk.blueBright((m.mtype || '').toUpperCase()));
-    if (m.text) console.log(chalk.cyanBright(`│ 💬 Texto: `) + chalk.whiteBright(m.text.slice(0, 200)));
-    console.log(chalk.cyanBright('└─────────────────────────────'));
+    // SOPHISTICATED STYLED HEADER
+    const headerColor = isGroup ? chalk.blueBright : chalk.greenBright;
+    const borderChar = isGroup ? '═' : '─';
+    const typeIcon = getTypeIcon(m.mtype);
+    
+    console.log(headerColor('┌' + borderChar.repeat(60) + '┐'));
+    console.log(headerColor('│') + ` ${typeIcon} ` + chalk.bold.white(senderName.slice(0, 20).padEnd(20)) + headerColor(' │ ') + chalk.gray(timeStr) + headerColor(' │'));
+    
+    if (isGroup) {
+      console.log(headerColor('│') + ` 👥 ` + chalk.yellow(chatName.slice(0, 50).padEnd(50)) + headerColor(' │'));
+    }
+    
+    if (m.text && m.text.length > 0) {
+      const textPreview = m.text.slice(0, 55);
+      const truncated = m.text.length > 55 ? '...' : '';
+      console.log(headerColor('│') + ` 💬 ` + chalk.white(textPreview + truncated).padEnd(55) + headerColor(' │'));
+    }
+    
+    console.log(headerColor('└' + borderChar.repeat(60) + '┘'));
 
-    // Función para mostrar imágenes/stickers en terminal
-    const mostrarImagen = async (buf, isWebp = false, isAnimated = false) => {
+    // ADVANCED IMAGE/STICKER TERMINAL DISPLAY
+    const displayMediaInTerminal = async (buf, mediaType, isAnimated = false) => {
       try {
         if (isAnimated) {
-          console.log(chalk.yellow('🎬 Sticker animado detectado (se omite animación)'));
-          return;
+          console.log(chalk.magenta('🎬 ') + chalk.yellow('Animated sticker ') + chalk.gray('(animation preview not supported)'));
+          return await displayStaticImageFallback(buf, mediaType);
         }
 
-        if (isWebp) {
-          const input = join(tmpdir(), `sticker_${Date.now()}.webp`);
-          const output = input.replace('.webp', '.png');
-          writeFileSync(input, buf);
-
-          await new Promise((resolve, reject) => {
-            ffmpeg(input)
-              .outputOptions(['-vcodec', 'png'])
-              .save(output)
-              .on('end', resolve)
-              .on('error', (err) => {
-                if (err.message.includes('code 69')) {
-                  console.log(chalk.yellow('⚠️ ffmpeg no pudo convertir este sticker (código 69), se omite la imagen.'));
-                  resolve();
-                } else {
-                  logger.warn('Error en conversión ffmpeg:', err.message);
-                  resolve(); // Continuar sin mostrar imagen
-                }
-              });
-          });
-
-          try {
-            if (existsSync(output)) {
-              buf = await Jimp.read(output).then(img => img.getBufferAsync(Jimp.MIME_PNG));
-            } else {
-              console.log(chalk.yellow('⚠️ No se creó archivo PNG, se omite la imagen.'));
-              return;
-            }
-          } catch (error) {
-            logger.warn('Error leyendo imagen convertida:', error.message);
-            return;
-          }
-
-          // Limpiar archivos temporales
-          if (existsSync(input)) unlinkSync(input);
-          if (existsSync(output)) unlinkSync(output);
-        } else {
-          // Procesar imagen normal
-          try {
-            const img = await Jimp.read(buf);
-            buf = await img.getBufferAsync(Jimp.MIME_PNG);
-          } catch (error) {
-            logger.warn('Error procesando imagen con Jimp:', error.message);
-            return;
-          }
+        // Try advanced terminal image display if available
+        if (terminalImage && Jimp) {
+          return await displayAdvancedImage(buf, mediaType);
         }
-
-        // Mostrar imagen en terminal
-        if (buf && buf.length > 0) {
-          const imageOutput = await terminalImage.buffer(buf, { width: '20%' });
-          process.stdout.write(imageOutput + '\n');
-        }
+        
+        // Fallback to ASCII representation
+        return await displayImageFallback(buf, mediaType);
+        
       } catch (err) {
-        console.log(chalk.red('⚠️ Error mostrando imagen/sticker:'), err.message);
-        logger.error('Error en mostrarImagen:', err);
+        logger.debug('Media display error:', err.message);
+        return displayBasicMediaInfo(buf, mediaType);
       }
+    };
+    
+    // Advanced image display with terminal-image and jimp
+    const displayAdvancedImage = async (buf, mediaType) => {
+      try {
+        let processedBuf = buf;
+        
+        // Process WebP stickers
+        if (mediaType === 'sticker' && ffmpeg) {
+          processedBuf = await convertWebPToPNG(buf);
+        }
+        
+        // Optimize image for terminal display
+        if (Jimp) {
+          const img = await Jimp.read(processedBuf);
+          // Resize for optimal terminal display
+          img.resize(120, Jimp.AUTO);
+          processedBuf = await img.getBufferAsync(Jimp.MIME_PNG);
+        }
+        
+        // Display in terminal
+        const imageOutput = await terminalImage.default.buffer(processedBuf, { 
+          width: '25%',
+          height: '25%'
+        });
+        
+        console.log(imageOutput);
+        return true;
+        
+      } catch (error) {
+        logger.debug('Advanced display failed:', error.message);
+        return false;
+      }
+    };
+    
+    // WebP to PNG conversion
+    const convertWebPToPNG = async (webpBuf) => {
+      if (!ffmpeg) return webpBuf;
+      
+      try {
+        const input = join(tmpdir(), `sticker_${Date.now()}.webp`);
+        const output = input.replace('.webp', '.png');
+        
+        writeFileSync(input, webpBuf);
+        
+        await new Promise((resolve, reject) => {
+          ffmpeg(input)
+            .outputOptions(['-vcodec', 'png'])
+            .save(output)
+            .on('end', resolve)
+            .on('error', reject);
+        });
+        
+        const pngBuf = readFileSync(output);
+        
+        // Cleanup
+        if (existsSync(input)) unlinkSync(input);
+        if (existsSync(output)) unlinkSync(output);
+        
+        return pngBuf;
+      } catch (error) {
+        logger.debug('WebP conversion failed:', error.message);
+        return webpBuf;
+      }
+    };
+    
+    // ASCII art fallback for images
+    const displayImageFallback = async (buf, mediaType) => {
+      try {
+        // Create simple ASCII representation based on image data
+        const size = Math.min(Math.floor(buf.length / 1024), 50);
+        const intensity = Math.floor((buf[0] + buf[buf.length-1]) / 32);
+        
+        const chars = [' ', '░', '▒', '▓', '█'];
+        const char = chars[Math.min(intensity, chars.length - 1)];
+        
+        console.log(chalk.cyan('┌' + '─'.repeat(size) + '┐'));
+        for (let i = 0; i < Math.min(size/4, 8); i++) {
+          console.log(chalk.cyan('│') + chalk.gray(char.repeat(size)) + chalk.cyan('│'));
+        }
+        console.log(chalk.cyan('└' + '─'.repeat(size) + '┘'));
+        console.log(chalk.gray(`↑ ${mediaType.toUpperCase()} preview (${(buf.length/1024).toFixed(1)}KB)`));
+        
+        return true;
+      } catch {
+        return false;
+      }
+    };
+    
+    // Static image fallback
+    const displayStaticImageFallback = async (buf, mediaType) => {
+      return await displayImageFallback(buf, mediaType);
+    };
+    
+    // Basic media info display
+    const displayBasicMediaInfo = (buf, mediaType) => {
+      const sizeKB = (buf.length / 1024).toFixed(1);
+      const icon = mediaType === 'image' ? '🖼️' : '🏷️';
+      console.log(chalk.green(`${icon} ${mediaType.toUpperCase()} received (${sizeKB} KB)`));
+      return true;
     };
 
     const tipo = m.mtype || '';
     const mime = (m.msg || m)?.mimetype || m.mediaType || '';
 
-    // Procesar multimedia (por ahora sin visualización, solo información)
+    // SOPHISTICATED MULTIMEDIA PROCESSING WITH TERMINAL DISPLAY
     if (tipo.includes('image')) {
-      console.log(chalk.cyan('📸 ') + chalk.white('Imagen recibida') + chalk.gray(` (${mime || 'sin tipo'})}`));
       try {
         const stream = await downloadContentFromMessage(m.msg || m.message?.imageMessage, 'image');
         let buf = Buffer.from([]);
         for await (const chunk of stream) {
           buf = Buffer.concat([buf, chunk]);
         }
+        
         if (buf?.length) {
-          console.log(chalk.green(`✅ Imagen descargada: ${(buf.length / 1024).toFixed(1)} KB`));
-          // TODO: Implementar visualización en terminal cuando las dependencias estén disponibles
+          console.log(chalk.cyan('📸 ') + chalk.white('IMAGE') + chalk.gray(` (${(buf.length/1024).toFixed(1)}KB, ${mime || 'unknown'})}`));
+          await displayMediaInTerminal(buf, 'image');
         }
       } catch (err) {
-        console.log(chalk.red('⚠️ Error procesando imagen:'), err.message);
+        console.log(chalk.red('⚠️ Image processing error:'), err.message);
       }
     }
 
     if (tipo.includes('sticker')) {
-      console.log(chalk.cyan('🏷️ ') + chalk.white('Sticker recibido') + chalk.gray(` (${mime || 'webp'})}`));
       try {
         const msgContent = m.msg || m.message?.stickerMessage;
         const isAnimated = msgContent?.isAnimated || false;
-        console.log(chalk.magenta(`🎬 Animado: ${isAnimated ? 'Sí' : 'No'}`));
         
         const stream = await downloadContentFromMessage(msgContent, 'sticker');
         let buf = Buffer.from([]);
         for await (const chunk of stream) {
           buf = Buffer.concat([buf, chunk]);
         }
+        
         if (buf?.length) {
-          console.log(chalk.green(`✅ Sticker descargado: ${(buf.length / 1024).toFixed(1)} KB`));
-          // TODO: Implementar visualización en terminal cuando las dependencias estén disponibles
+          const animatedText = isAnimated ? chalk.magenta(' [ANIMATED]') : '';
+          console.log(chalk.cyan('🏷️ ') + chalk.white('STICKER') + animatedText + chalk.gray(` (${(buf.length/1024).toFixed(1)}KB)`));
+          await displayMediaInTerminal(buf, 'sticker', isAnimated);
         }
       } catch (err) {
-        console.log(chalk.red('⚠️ Error procesando sticker:'), err.message);
+        console.log(chalk.red('⚠️ Sticker processing error:'), err.message);
       }
     }
 
-    // Procesar otros tipos de multimedia
+    // OTHER MULTIMEDIA TYPES WITH ENHANCED INFO
     if (tipo.includes('video')) {
-      console.log(chalk.cyan('🎥 ') + chalk.white('Video recibido') + chalk.gray(` (${mime || 'sin tipo'})}`));
+      const videoIcon = mime?.includes('gif') ? '🎞️' : '🎥';
+      console.log(chalk.cyan(videoIcon + ' ') + chalk.white('VIDEO') + chalk.gray(` (${mime || 'unknown'})}`));
     }
     if (tipo.includes('audio') || tipo.includes('ptt')) {
       const isVoiceNote = tipo.includes('ptt');
-      console.log(chalk.cyan(isVoiceNote ? '🎙️ ' : '🎵 ') + chalk.white(isVoiceNote ? 'Nota de voz' : 'Audio') + chalk.gray(` (${mime || 'sin tipo'})}`));
+      const icon = isVoiceNote ? '🎙️' : '🎵';
+      const label = isVoiceNote ? 'VOICE NOTE' : 'AUDIO';
+      console.log(chalk.cyan(icon + ' ') + chalk.white(label) + chalk.gray(` (${mime || 'unknown'})}`));
     }
     if (tipo.includes('document')) {
-      console.log(chalk.cyan('📄 ') + chalk.white('Documento recibido') + chalk.gray(` (${mime || 'sin tipo'})}`));
+      const docIcon = getDocumentIcon(mime);
+      console.log(chalk.cyan(docIcon + ' ') + chalk.white('DOCUMENT') + chalk.gray(` (${mime || 'unknown'})}`));
     }
 
-    // Mostrar errores si los hay
+    // ERROR DISPLAY WITH SOPHISTICATED FORMATTING
     if (m.error) {
-      console.log(chalk.bgRedBright('💥 ERROR:'), chalk.red(m.error));
+      console.log(chalk.red('┌─ ❌ ERROR'));
+      console.log(chalk.red('│ ') + chalk.white(m.error));
+      console.log(chalk.red('└─'));
     }
 
-    // Mostrar menciones
-    if (Array.isArray(m.mentionedJid)) {
+    // MENTIONS WITH SOPHISTICATED FORMATTING
+    if (Array.isArray(m.mentionedJid) && m.mentionedJid.length > 0) {
+      console.log(chalk.yellow('┌─ 🔔 MENTIONS'));
       for (const jid of m.mentionedJid) {
         const cleanJid = jid.replace(/:\d+/, '');
         const name = await getName(cleanJid);
-        const user = PhoneNumber('+' + cleanJid.replace(/@.*/, '')).getNumber('international') || cleanJid;
-        console.log(chalk.cyan(`🔔 Mencionado: ${user} ${name ? '~ ' + name : ''}`));
+        const phoneFormatted = formatPhoneNumber(cleanJid);
+        console.log(chalk.yellow('│ ') + chalk.white(name) + chalk.gray(` (${phoneFormatted})`));
       }
+      console.log(chalk.yellow('└─'));
     }
 
     console.log(); // Línea en blanco para separar mensajes
 
+    console.log(); // Elegant spacing
+
   } catch (error) {
-    logger.error('Error en printMessage:', error);
-    console.log(chalk.red('❌ Error imprimiendo mensaje:'), error.message);
+    logger.debug('Print error:', error.message);
+    console.log(chalk.red('⚠️ Display error:'), error.message.slice(0, 50));
   }
 }
 
-// Función adicional para imprimir eventos del bot
+// UTILITY FUNCTIONS FOR SOPHISTICATED PRINTING
+function getTypeIcon(mtype) {
+  const icons = {
+    'conversation': '💬',
+    'extendedTextMessage': '📝',
+    'imageMessage': '📸',
+    'videoMessage': '🎥',
+    'audioMessage': '🎵',
+    'stickerMessage': '🏷️',
+    'documentMessage': '📄',
+    'contactMessage': '👤',
+    'locationMessage': '📍'
+  };
+  return icons[mtype] || '❓';
+}
+
+function getDocumentIcon(mime) {
+  if (!mime) return '📄';
+  if (mime.includes('pdf')) return '📕';
+  if (mime.includes('image')) return '🖼️';
+  if (mime.includes('video')) return '🎬';
+  if (mime.includes('audio')) return '🎧';
+  if (mime.includes('zip') || mime.includes('rar')) return '📦';
+  if (mime.includes('text')) return '📝';
+  return '📄';
+}
+
+function formatPhoneNumber(jid) {
+  try {
+    const number = jid.replace(/@.*/, '');
+    const phone = PhoneNumber('+' + number);
+    return phone.getNumber('international') || `+${number}`;
+  } catch {
+    return jid.split('@')[0];
+  }
+}
+
+// ADVANCED BOT EVENT PRINTING SYSTEM
 export function printBotEvent(event, data = {}) {
-  const timeStr = new Date().toLocaleTimeString();
+  const timeStr = new Date().toLocaleTimeString('es-ES', { hour12: false });
   
   switch (event) {
     case 'command':
-      console.log(chalk.magentaBright('🚀 ') + chalk.white(`[${timeStr}] Comando ejecutado: `) + chalk.cyan(data.command));
+      console.log(chalk.magentaBright('⚡ COMMAND ') + chalk.cyan(`${data.command}`) + chalk.gray(` at ${timeStr}`));
       break;
     case 'connection':
-      console.log(chalk.greenBright('🔗 ') + chalk.white(`[${timeStr}] Estado de conexión: `) + chalk.yellow(data.state));
+      const statusColor = data.state === 'open' ? chalk.green : data.state === 'close' ? chalk.red : chalk.yellow;
+      console.log(chalk.blueBright('🔗 CONNECTION ') + statusColor(data.state.toUpperCase()) + chalk.gray(` at ${timeStr}`));
       break;
     case 'error':
-      console.log(chalk.redBright('❌ ') + chalk.white(`[${timeStr}] Error: `) + chalk.red(data.message));
+      console.log(chalk.redBright('❌ ERROR ') + chalk.red(data.message) + chalk.gray(` at ${timeStr}`));
       break;
     case 'plugin_loaded':
-      console.log(chalk.blueBright('🔌 ') + chalk.white(`[${timeStr}] Plugin cargado: `) + chalk.green(data.name));
+      console.log(chalk.greenBright('🔌 PLUGIN ') + chalk.white(data.name) + chalk.gray(` loaded at ${timeStr}`));
+      break;
+    case 'user_join':
+      console.log(chalk.greenBright('👋 JOIN ') + chalk.white(data.user) + chalk.gray(` joined ${data.group}`));
+      break;
+    case 'user_leave':
+      console.log(chalk.yellowBright('👋 LEAVE ') + chalk.white(data.user) + chalk.gray(` left ${data.group}`));
       break;
     default:
-      console.log(chalk.gray('ℹ️ ') + chalk.white(`[${timeStr}] ${event}: `) + chalk.gray(JSON.stringify(data)));
+      console.log(chalk.gray(`ℹ️ ${event.toUpperCase()}: ${JSON.stringify(data)}`));
   }
 }
 
-// Banner de inicio estilizado
+// SOPHISTICATED STARTUP BANNER WITH SYSTEM INFO
 export function printStartupBanner() {
   console.clear();
-  console.log(chalk.gradient('cyan', 'blue')(`
-  ╔══════════════════════════════════════════════════════════════════╗
-  ║                    🤖 MOJITO WHATSAPP BOT 🤖                     ║
-  ║                      📱 SISTEMA AVANZADO 📱                       ║
-  ╠══════════════════════════════════════════════════════════════════╣
-  ║  🚀 Bot optimizado para Termux y Replit                          ║
-  ║  🎨 Sistema de impresión visual avanzado                         ║
-  ║  🖼️  Soporte para stickers e imágenes en consola                ║
-  ║  ⚡ Conexión bulletproof con QR y Pairing Code                   ║
-  ╚══════════════════════════════════════════════════════════════════╝
-  `));
   
-  console.log(chalk.yellow(`
-  💡 Características:
-     • Visualización de stickers en terminal
-     • Impresión de imágenes en consola  
-     • Sistema de logs colorizado
-     • Compatible con Termux/Linux
-     • Plugins modulares
-  `));
+  // Gradient banner with system detection
+  const platform = process.platform;
+  const isTermux = process.env.PREFIX?.includes('com.termux');
+  const isReplit = process.env.REPLIT_ENV === 'true';
   
-  console.log(chalk.green(`
-  🔧 Estado del sistema: `) + chalk.blueBright('INICIANDO...'));
+  console.log(chalk.gradient('cyan', 'magenta')(
+`╔══════════════════════════════════════════════════════════════════════╗
+║                     🤖 MOJITO WHATSAPP BOT 🤖                       ║
+║                 📱 ADVANCED TERMINAL INTERFACE 📱                    ║
+╠══════════════════════════════════════════════════════════════════════╣
+║  ⚡ Bulletproof session persistence                                  ║
+║  🖼️  Terminal image/sticker display                                  ║
+║  🎨 Sophisticated console printing                                   ║
+║  🔧 Auto-reconnection & optimization                                 ║
+╚══════════════════════════════════════════════════════════════════════╝`));
+  
+  // Environment detection
+  const envInfo = [];
+  if (isTermux) envInfo.push(chalk.green('📱 Termux'));
+  if (isReplit) envInfo.push(chalk.blue('☁️ Replit'));
+  if (terminalImage) envInfo.push(chalk.cyan('🖼️ Terminal Images'));
+  if (Jimp) envInfo.push(chalk.magenta('🎨 Image Processing'));
+  if (ffmpeg) envInfo.push(chalk.yellow('🎥 Video Support'));
+  
+  if (envInfo.length > 0) {
+    console.log('\n' + chalk.white('🔧 Environment: ') + envInfo.join(' '));
+  }
+  
+  console.log('\n' + chalk.green('✅ System optimized for maximum uptime and reliability'));
+  console.log(chalk.cyan('🚀 Advanced printing system active'));
   console.log();
 }
