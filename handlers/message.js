@@ -102,9 +102,9 @@ async function processCommand(conn, m) {
     // Check loaded plugins - FIXED command detection
     if (global.plugins && Object.keys(global.plugins).length > 0) {
       for (const [pluginName, plugin] of Object.entries(global.plugins)) {
-        if (plugin.command && plugin.command.test(usedPrefix + command)) {
+        if (plugin.command && plugin.command.test(command)) {
           try {
-            console.log(`🔌 Executing plugin: ${pluginName} for command: ${usedPrefix}${command}`);
+            console.log(`🔌 Executing plugin: ${pluginName} for command: ${command}`);
             await plugin.handler(enhancedM, { conn, usedPrefix, command, args });
             return;
           } catch (error) {
@@ -125,16 +125,36 @@ async function processCommand(conn, m) {
       case 'bot':
       case 'info':
         const uptime = process.uptime();
+        const memUsage = process.memoryUsage();
         const info = `
-🤖 *MoJiTo Bot*
+🤖 *MoJiTo WhatsApp Bot*
 
-⏰ *Tiempo activo:* ${Math.floor(uptime / 60)} minutos
-💾 *Memoria:* ${(process.memoryUsage().heapUsed / 1024 / 1024).toFixed(2)} MB
-📱 *Versión:* 1.0.0
-👑 *Creador:* Brian Martins
-🔌 *Plugins:* ${global.plugins ? Object.keys(global.plugins).length : 0}
+📊 *Estado actual:*
+• Estado: ${global.conn?.user ? '🟢 Conectado' : '🔴 Desconectado'}
+• Tiempo activo: ${Math.floor(uptime / 3600)}h ${Math.floor((uptime % 3600) / 60)}m
+• Memoria: ${(memUsage.heapUsed / 1024 / 1024).toFixed(2)} MB
+• Plugins: ${global.plugins ? Object.keys(global.plugins).length : 0} cargados
 
-✅ Bot funcionando correctamente
+🔧 *Información técnica:*
+• Versión: 2.0.0
+• Node.js: ${process.version}
+• Plataforma: ${process.platform}
+• PID: ${process.pid}
+
+👑 *Creado por:* Brian Martins
+🌐 *Servidor HTTP:* Puerto 5000
+
+💡 *Comandos disponibles:*
+.ping - Latencia del bot
+.status - Estado del sistema  
+.memoria - Uso de memoria
+.cpu - Info del procesador
+.disco - Espacio en disco
+.red - Información de red
+.entorno - Variables del entorno
+.uptime - Tiempo de actividad
+
+✅ Sistema funcionando correctamente
         `.trim();
         
         await conn.sendMessage(m.sender, { text: info });
