@@ -30,9 +30,6 @@ args = "MoJiTo Bot - Optimized"
 name = "MoJiTo Bot - Optimized"
 author = "agent"
 
-[workflows.workflow.metadata]
-outputType = "webview"
-
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "node index.js"

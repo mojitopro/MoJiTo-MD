@@ -15,41 +15,32 @@ if (!existsSync(logsDir)) {
 // Create logger instance with safe configuration
 let logger;
 
-// Use simple logger by default to avoid worker thread issues
-// Only use transport if explicitly in Replit environment
-if (process.env.REPLIT && process.env.REPLIT_DB_URL) {
-  // We're definitely in Replit, safe to use transport
-  try {
-    logger = pino({
-      level: process.env.DEBUG === 'true' ? 'debug' : 'info',
-      transport: {
-        target: 'pino-pretty',
-        options: {
-          colorize: true,
-          translateTime: 'HH:MM:ss',
-          ignore: 'pid,hostname',
-          messageFormat: '{msg}'
-        }
-      }
-    });
-  } catch (error) {
-    // Fallback to basic logger
-    logger = pino({
-      level: process.env.DEBUG === 'true' ? 'debug' : 'info',
-      base: null
-    });
-  }
-} else {
-  // Use basic logger for all other environments (Termux, local dev, etc.)
-  logger = pino({
-    level: process.env.DEBUG === 'true' ? 'debug' : 'info',
-    base: null,
-    timestamp: () => `,"time":"${new Date().toLocaleTimeString()}"`,
-    formatters: {
-      level: (label) => ({ level: label })
+// Minimal console logger - reduce spam significantly
+logger = {
+  info: (msg, ...args) => {
+    // Only log critical startup events and connections
+    if (msg.includes('🚀 Starting') || msg.includes('✅ HTTP server') || msg.includes('Worker is ready') || msg.includes('Bot started successfully')) {
+      console.log(`${msg}`);
     }
-  });
-}
+  },
+  error: (msg, ...args) => {
+    console.error(`❌ ${msg}`);
+  },
+  warn: (msg, ...args) => {
+    // Only show critical warnings
+    if (msg.includes('Disconnected') || msg.includes('Login issue')) {
+      console.warn(`⚠️  ${msg}`);
+    }
+  },
+  debug: (msg, ...args) => {
+    if (process.env.DEBUG === 'true') {
+      console.log(`🐛 ${msg}`);
+    }
+  },
+  success: (msg, ...args) => {
+    console.log(`${msg}`);
+  }
+};
 
 // Add custom methods for better UX
 const originalError = logger.error.bind(logger);

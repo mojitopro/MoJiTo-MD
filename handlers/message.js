@@ -17,12 +17,6 @@ export function setupMessageHandler(conn) {
   
   // Listen to both events to ensure compatibility
   conn.ev.on('messages.upsert', async ({ messages, type }) => {
-    logger.info(`📨 Direct message handler: ${messages.length} messages, type: ${type}`);
-    await handleMessages(conn, messages, type);
-  });
-  
-  conn.ev.on('message.handler', async ({ messages, type }) => {
-    logger.info(`📨 Custom message handler: ${messages.length} messages, type: ${type}`);
     await handleMessages(conn, messages, type);
   });
 }
@@ -54,11 +48,9 @@ async function handleMessages(conn, messages, type) {
           mentionedJid: message.message?.extendedTextMessage?.contextInfo?.mentionedJid || []
         };
         
-        // Basic console output (temporary)
+        // Minimal console output for commands only
         if (m.text && global.prefix.test(m.text)) {
-          console.log(chalk.green('📨 ') + chalk.white(`Command: ${m.text} from ${m.pushName}`));
-        } else if (m.text) {
-          console.log(chalk.blue('💬 ') + chalk.gray(`Message from ${m.pushName}: ${m.text.slice(0, 50)}...`));
+          console.log(`📨 Command: ${m.text.slice(0, 20)} from ${m.pushName}`);
         }
         
         // Process commands
@@ -107,15 +99,16 @@ async function processCommand(conn, m) {
       body: m.text
     };
     
-    // Check loaded plugins
+    // Check loaded plugins - FIXED command detection
     if (global.plugins && Object.keys(global.plugins).length > 0) {
       for (const [pluginName, plugin] of Object.entries(global.plugins)) {
-        if (plugin.command && plugin.command.test(command)) {
+        if (plugin.command && plugin.command.test(usedPrefix + command)) {
           try {
+            console.log(`🔌 Executing plugin: ${pluginName} for command: ${usedPrefix}${command}`);
             await plugin.handler(enhancedM, { conn, usedPrefix, command, args });
             return;
           } catch (error) {
-            logger.debug(`Plugin ${pluginName} error:`, error.message);
+            console.error(`❌ Plugin ${pluginName} error:`, error.message);
           }
         }
       }

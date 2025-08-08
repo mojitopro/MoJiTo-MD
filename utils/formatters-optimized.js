@@ -14,36 +14,22 @@ import { logger } from '../services/logger.js';
 export async function startupDisplay() {
   console.clear();
   
-  // Main title with gradient
-  cfonts.say('MOJITO', {
-    font: 'block',
+  // Simple title
+  cfonts.say('MOJITO-MD', {
+    font: 'simple',
     align: 'center',
-    colors: ['#ff6b6b', '#4ecdc4', '#45b7d1'],
+    colors: ['cyan'],
     background: 'transparent',
     letterSpacing: 1,
     lineHeight: 1,
-    space: true,
+    space: false,
     maxLength: '0'
   });
   
-  // Subtitle
-  console.log(gradient.rainbow('                    WHATSAPP BOT MD').toString());
-  console.log();
-  
-  // Info section
-  const infoBox = [
-    '━'.repeat(60),
-    '🚀 Bot creado por Brian Martins',
-    '📱 WhatsApp Bot optimizado para Termux y Replit',
-    '⚡ Conexión mejorada - QR y Pairing Code',
-    '🔧 Sistema completamente reescrito y optimizado',
-    '━'.repeat(60)
-  ];
-  
-  infoBox.forEach(line => {
-    console.log(chalk.cyan(line));
-  });
-  
+  // Minimal info
+  console.log(chalk.gray('═'.repeat(50)));
+  console.log(chalk.cyan('🤖 WhatsApp Bot - Brian Martins'));
+  console.log(chalk.gray('═'.repeat(50)));
   console.log();
 }
 
