@@ -494,7 +494,7 @@ async function sendConnectionNotification(sock) {
     if (global.owner && global.owner[0] && global.owner[0][0]) {
       const ownerJid = global.owner[0][0] + '@s.whatsapp.net';
       await sock.sendMessage(ownerJid, {
-        text: `🤖 *MoJiTo Bot Conectado*\n\n✅ Bot online exitosamente\n👤 ${sock.user.name}\n🕐 ${new Date().toLocaleString()}\n🚀 Sistema optimizado funcionando`
+        text: `🤖 *MoJiTo Bot Conectado*\n\n✅ Bot online exitosamente\n👤 ${sock.user?.name || sock.user?.id?.split('@')[0] || 'Usuario'}\n🕐 ${new Date().toLocaleString()}\n🚀 Sistema optimizado funcionando`
       });
       logger.info('📨 Notification sent to owner');
     }
