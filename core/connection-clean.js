@@ -115,6 +115,8 @@ function setupEventHandlers(socket, saveCreds) {
       socket.isConnected = true;
       socket.shouldProcessMessages = true;
       global.conn = socket;
+      
+      // El handler se configura desde core/app.js después de cargar plugins
 
       // Notificar al propietario (sin logs)
       try {
@@ -218,6 +220,8 @@ async function handleReconnection(lastDisconnect) {
     }
   }
 }
+
+// Función removida - integración se maneja en app.js
 
 /**
  * Logger silencioso para evitar spam

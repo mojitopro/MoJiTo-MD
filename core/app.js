@@ -26,7 +26,7 @@ export async function startBot() {
     logger.info('✅ Database ready');
 
     // Start HTTP server for Replit compatibility FIRST
-    startHTTPServer(5000);
+    await startHTTPServer(5000);
     logger.info('✅ HTTP server running on port 5000');
 
     // Initialize clean pairing code connection
@@ -36,16 +36,14 @@ export async function startBot() {
     global.conn = connection;
     logger.info('✅ WhatsApp connection initialized');
 
-    // Load plugins natively integrated with the pairing system
+    // Load plugins BEFORE setting up handlers
     const plugins = await loadPlugins();
     logger.info(`✅ Loaded ${plugins.length} plugins`);
 
-    // Setup native message and event handlers (already integrated in pairing system)
-    if (connection && !connection.shouldProcessMessages) {
-      setupMessageHandler(connection);
-      setupEventHandlers(connection);
-      logger.info('✅ Backup message handlers configured');
-    }
+    // Setup message and event handlers with loaded plugins
+    setupMessageHandler(connection);
+    setupEventHandlers(connection);
+    logger.info('✅ Message handlers configured with plugins');
 
     // Start cleanup service
     startCleanupService();

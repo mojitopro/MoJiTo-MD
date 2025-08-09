@@ -35,6 +35,9 @@ task = "shell.exec"
 args = "node index.js"
 waitForPort = 5000
 
+[workflows.workflow.metadata]
+outputType = "console"
+
 [agent]
 expertMode = true
 

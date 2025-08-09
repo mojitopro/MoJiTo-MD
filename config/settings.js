@@ -110,9 +110,9 @@ function setupBotConfig() {
 function setupCommandLineOptions() {
   global.opts = yargs(process.argv.slice(2)).exitProcess(false).parse();
   
-  // Setup prefix regex - simplified and safe
-  const prefixChars = global.opts.prefix || '.,/#!$%\\^&\\*;:{}=\\-_`~()';
-  global.prefix = new RegExp(`^[${prefixChars.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}]`, 'i');
+  // Setup prefix regex - CORREGIDO para compatibilidad total
+  global.prefix = /^[.!/#$%+€£¢¥^°=¶∆×÷π√✓©®:;?&-]/;
+  global.owner = ['5521989050540']; // Tu número como owner
   
   logger.debug(`Command prefix pattern: ${global.prefix}`);
 }

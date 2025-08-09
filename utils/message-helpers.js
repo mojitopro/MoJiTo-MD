@@ -1,44 +1,44 @@
 /**
- * Utilidades para procesamiento de mensajes
+ * Message utility functions
  */
 
 export function getMessageText(message) {
-  return message?.conversation || 
-         message?.extendedTextMessage?.text || 
-         message?.imageMessage?.caption || 
-         message?.videoMessage?.caption || 
-         message?.documentMessage?.caption ||
+  if (!message) return '';
+  
+  return message.conversation ||
+         message.extendedTextMessage?.text ||
+         message.imageMessage?.caption ||
+         message.videoMessage?.caption ||
+         message.documentMessage?.caption ||
+         message.buttonsResponseMessage?.selectedButtonId ||
+         message.listResponseMessage?.singleSelectReply?.selectedRowId ||
+         message.templateButtonReplyMessage?.selectedId ||
          '';
 }
 
 export function getMessageType(message) {
-  if (message?.conversation) return 'conversation';
-  if (message?.extendedTextMessage) return 'extendedTextMessage';
-  if (message?.imageMessage) return 'imageMessage';
-  if (message?.videoMessage) return 'videoMessage';
-  if (message?.audioMessage) return 'audioMessage';
-  if (message?.stickerMessage) return 'stickerMessage';
-  if (message?.documentMessage) return 'documentMessage';
-  if (message?.contactMessage) return 'contactMessage';
-  if (message?.locationMessage) return 'locationMessage';
-  if (message?.buttonsMessage) return 'buttonsMessage';
-  if (message?.templateMessage) return 'templateMessage';
-  if (message?.listMessage) return 'listMessage';
-  if (message?.reactionMessage) return 'reactionMessage';
-  return 'unknown';
+  if (!message) return 'unknown';
+  
+  const types = Object.keys(message);
+  return types[0] || 'unknown';
 }
 
-export function isMediaMessage(mtype) {
-  return ['imageMessage', 'videoMessage', 'audioMessage', 'stickerMessage', 'documentMessage'].includes(mtype);
+export function isCommand(text, prefixes = ['.', '/', '!', '#']) {
+  if (!text) return false;
+  return prefixes.some(prefix => text.startsWith(prefix));
 }
 
-export function getMediaType(mtype) {
-  switch (mtype) {
-    case 'imageMessage': return 'image';
-    case 'videoMessage': return 'video';
-    case 'audioMessage': return 'audio';
-    case 'stickerMessage': return 'sticker';
-    case 'documentMessage': return 'document';
-    default: return null;
-  }
+export function extractCommand(text, prefixes = ['.', '/', '!', '#']) {
+  if (!isCommand(text, prefixes)) return null;
+  
+  const usedPrefix = prefixes.find(prefix => text.startsWith(prefix));
+  const command = text.slice(usedPrefix.length).split(' ')[0].toLowerCase();
+  const args = text.slice(usedPrefix.length).split(' ').slice(1);
+  
+  return {
+    command,
+    args,
+    usedPrefix,
+    fullArgs: args.join(' ')
+  };
 }
