@@ -26,8 +26,13 @@ export async function startBot() {
     logger.info('✅ Database ready');
 
     // Start HTTP server for Replit compatibility FIRST
-    await startHTTPServer(5000);
-    logger.info('✅ HTTP server running on port 5000');
+    try {
+      await startHTTPServer(5000);
+      logger.info('✅ HTTP server running on port 5000');
+    } catch (err) {
+      logger.warn('HTTP server issue:', err.message);
+      // Continuar sin servidor HTTP si hay problemas
+    }
 
     // Initialize universal connection (QR or Pairing Code)
     const connectionOptions = {
@@ -69,6 +74,7 @@ export async function startBot() {
 
   } catch (error) {
     logger.error('Failed to start bot:', error);
+    console.error('Error stack:', error.stack);
     process.exit(1);
   }
 }

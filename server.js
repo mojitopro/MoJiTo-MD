@@ -8,10 +8,12 @@ import { logger } from './services/logger.js';
 let serverInstance = null;
 
 export function startHTTPServer(port = 5000) {
-  if (serverInstance) {
-    logger.warn('HTTP server already running');
-    return serverInstance;
-  }
+  return new Promise((resolve, reject) => {
+    if (serverInstance) {
+      logger.warn('HTTP server already running');
+      resolve(serverInstance);
+      return;
+    }
 
   const server = http.createServer((req, res) => {
     // Set CORS headers
@@ -121,17 +123,18 @@ export function startHTTPServer(port = 5000) {
     res.end(JSON.stringify({ error: 'Not found', available: ['/health', '/status', '/info'] }));
   });
 
-  server.listen(port, '0.0.0.0', () => {
-    logger.success(`HTTP server running on port ${port}`);
-    console.log(`Server is now listening on http://0.0.0.0:${port}`);
-  });
+    server.listen(port, '0.0.0.0', () => {
+      logger.info(`HTTP server running on port ${port}`);
+      console.log(`Server is now listening on http://0.0.0.0:${port}`);
+      serverInstance = server;
+      resolve(server);
+    });
 
-  server.on('error', (error) => {
-    logger.error('HTTP server error:', error);
+    server.on('error', (error) => {
+      logger.error('HTTP server error:', error);
+      reject(error);
+    });
   });
-
-  serverInstance = server;
-  return server;
 }
 
 export function stopHTTPServer() {

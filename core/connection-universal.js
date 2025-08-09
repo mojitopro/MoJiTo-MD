@@ -69,9 +69,11 @@ async function prepareSessionDirectory() {
     if (!fs.existsSync(AUTH_FOLDER)) {
       fs.mkdirSync(AUTH_FOLDER, { recursive: true });
       logger.debug('📁 Directorio de sesión creado');
+    } else {
+      logger.debug('📁 Directorio de sesión existente detectado');
     }
   } catch (error) {
-    logger.error('❌ Error creando directorio de sesión:', error.message);
+    logger.error('❌ Error preparando directorio de sesión:', error.message);
     throw error;
   }
 }

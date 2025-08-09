@@ -6,12 +6,21 @@ import { createInterface } from 'readline';
 import chalk from 'chalk';
 import gradient from 'gradient-string';
 import { logger } from '../services/logger.js';
+import fs from 'fs';
+import path from 'path';
 
 /**
  * Interfaz interactiva para elegir modo de conexión
  */
 export async function interactiveStartup() {
-  // Si ya hay variables de entorno configuradas, usar esas
+  // PASO 1: Verificar si ya existe sesión válida
+  const existingSession = await checkExistingSession();
+  if (existingSession) {
+    logger.info('🎯 Sesión existente detectada - Conectando automáticamente...');
+    return existingSession;
+  }
+
+  // PASO 2: Si hay variables de entorno configuradas, usar esas
   if (process.env.USE_PAIRING_CODE === 'true' && process.env.PHONE_NUMBER) {
     logger.info('🔧 Configuración detectada - Usando pairing code automático');
     return {
@@ -28,8 +37,13 @@ export async function interactiveStartup() {
     };
   }
 
-  // Si no hay configuración previa, mostrar menú interactivo
-  return await showConnectionMenu();
+  // PASO 3: Primera vez - mostrar menú interactivo
+  const config = await showConnectionMenu();
+  
+  // PASO 4: Guardar configuración para futuras ejecuciones
+  await saveConnectionConfig(config);
+  
+  return config;
 }
 
 /**
@@ -151,4 +165,71 @@ export function displaySelectedConfiguration(config) {
   console.log('🔥'.repeat(70));
   console.log(chalk.yellow('🚀 Iniciando conexión...'));
   console.log();
+}
+
+/**
+ * Verificar si existe una sesión válida previa
+ */
+async function checkExistingSession() {
+  const sessionDir = './MojiSession';
+  const configFile = './bot-config.json';
+  
+  try {
+    // Verificar si existe directorio de sesión con archivos válidos
+    if (!fs.existsSync(sessionDir)) {
+      return null;
+    }
+    
+    const sessionFiles = fs.readdirSync(sessionDir);
+    const hasCredentials = sessionFiles.some(file => file === 'creds.json');
+    const hasSessionData = sessionFiles.some(file => file.startsWith('session-'));
+    
+    if (!hasCredentials || !hasSessionData) {
+      return null;
+    }
+    
+    // Leer configuración guardada si existe
+    if (fs.existsSync(configFile)) {
+      const savedConfig = JSON.parse(fs.readFileSync(configFile, 'utf8'));
+      if (savedConfig.phoneNumber) {
+        console.log(chalk.green(`🎯 Sesión detectada para: +${savedConfig.phoneNumber}`));
+        console.log(chalk.cyan('🔄 Conectando automáticamente con sesión guardada...'));
+        return savedConfig;
+      }
+    }
+    
+    // Si hay sesión pero no configuración, asumir conexión existente
+    console.log(chalk.green('🎯 Sesión WhatsApp detectada - Conectando automáticamente...'));
+    return {
+      usePairingCode: false, // Por defecto QR si no sabemos el método
+      phoneNumber: null,
+      hasExistingSession: true
+    };
+    
+  } catch (error) {
+    logger.debug('Error verificando sesión existente:', error.message);
+    return null;
+  }
+}
+
+/**
+ * Guardar configuración de conexión para futuras ejecuciones
+ */
+async function saveConnectionConfig(config) {
+  const configFile = './bot-config.json';
+  
+  try {
+    const configData = {
+      usePairingCode: config.usePairingCode,
+      phoneNumber: config.phoneNumber,
+      savedAt: new Date().toISOString(),
+      version: '1.0'
+    };
+    
+    fs.writeFileSync(configFile, JSON.stringify(configData, null, 2));
+    logger.info('✅ Configuración guardada para futuras ejecuciones');
+    
+  } catch (error) {
+    logger.warn('Error guardando configuración:', error.message);
+  }
 }
