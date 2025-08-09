@@ -4,7 +4,7 @@
  */
 import { setupGlobalVariables } from '../config/settings.js';
 import { initializeDatabase } from '../services/database.js';
-import { initializeConnection } from './connection-ultra.js';
+import { initializePairingSystem } from './pairing-system.js';
 import { loadPlugins } from '../plugins/loader.js';
 import { setupMessageHandler } from '../handlers/message.js';
 import { setupEventHandlers } from '../handlers/events.js';
@@ -29,11 +29,8 @@ export async function startBot() {
     startHTTPServer(5000);
     logger.info('✅ HTTP server running on port 5000');
 
-    // Initialize WhatsApp connection with pairing code (optimized for Replit)
-    const connection = await initializeConnection({
-      usePairingCode: true,  // Force pairing code for easier setup
-      phoneNumber: process.env.PHONE_NUMBER || '5511999999999' // Default example number
-    });
+    // Initialize pairing code system for WhatsApp connection
+    const connection = await initializePairingSystem();
 
     // Store global connection reference
     global.conn = connection;

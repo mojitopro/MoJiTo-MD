@@ -3,7 +3,7 @@
  * Bulletproof implementation with pairing code support
  * Optimized for maximum speed and reliability in Replit
  */
-import pkg from '@whiskeysockets/baileys';
+import pkg from 'baileys';
 const { 
   default: makeWASocket, 
   DisconnectReason, 
@@ -38,20 +38,13 @@ export async function initializeConnection(options = {}) {
     isConnecting = true;
     logger.info('🚀 Initializing Ultra WhatsApp connection...');
 
-    const usePairingCode = options.usePairingCode !== false; // Default to true
-    let phoneNumber = options.phoneNumber || process.env.PHONE_NUMBER || '5511999999999';
+    const usePairingCode = true; // Always use pairing code
+    let phoneNumber = '5521989050540'; // Your specific number
 
-    // Clean phone number for pairing code
-    if (usePairingCode) {
-      phoneNumber = phoneNumber.replace(/[^0-9]/g, '');
-      if (phoneNumber.startsWith('55') && phoneNumber.length === 13) {
-        logger.info(`📱 Using Brazilian number: +${phoneNumber}`);
-      } else if (phoneNumber.length === 11 && phoneNumber.startsWith('1')) {
-        logger.info(`📱 Using US number: +${phoneNumber}`);
-      } else {
-        logger.info(`📱 Using number: +${phoneNumber}`);
-      }
-    }
+    // Clean and format Brazilian number
+    phoneNumber = phoneNumber.replace(/[^0-9]/g, '');
+    logger.info(`🇧🇷 Configurando número brasileño: +${phoneNumber}`);
+    logger.info('📱 Modo pairing code activado - Solicitar código');
 
     // Ensure auth folder exists
     if (!fs.existsSync(authStateFolder)) {
