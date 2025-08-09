@@ -30,13 +30,13 @@ args = "MoJiTo Bot - Clean"
 name = "MoJiTo Bot - Clean"
 author = "agent"
 
+[workflows.workflow.metadata]
+outputType = "console"
+
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "node index.js"
 waitForPort = 5000
-
-[workflows.workflow.metadata]
-outputType = "console"
 
 [agent]
 expertMode = true
