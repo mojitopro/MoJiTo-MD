@@ -1,10 +1,10 @@
 
 /**
- * Message handling and processing
+ * Ultra-Fast Message handling and processing - Optimized for millisecond responses
  */
 import { logger } from '../services/logger.js';
-// Temporarily disabled: import { printMessage, printBotEvent } from '../utils/print.js';
 import { getMessageText, getMessageType } from '../utils/message-helpers.js';
+import { speedOptimizer, GroupOptimizer } from '../core/speed-optimizer.js';
 import chalk from 'chalk';
 
 export function setupMessageHandler(conn) {
@@ -23,52 +23,106 @@ export function setupMessageHandler(conn) {
 
 async function handleMessages(conn, messages, type) {
   try {
-    // Reduced spam - only log significant events
     if (type !== 'notify') return;
+    
+    // Process messages in parallel for maximum speed
+    const processPromises = messages.map(async (message) => {
+      if (!message.message) return;
       
-      for (const message of messages) {
-        if (!message.message) continue;
-        
-        // Allow commands from bot owner, skip only non-command messages
-        if (message.key.fromMe && !getMessageText(message.message).match(/^[./#!]/)) {
-          continue;
+      // Skip non-command messages from bot
+      if (message.key.fromMe && !getMessageText(message.message).match(/^[./#!]/)) {
+        return;
+      }
+      
+      const startTime = process.hrtime.bigint();
+      
+      // Ultra-fast message object creation
+      const m = {
+        key: message.key,
+        message: message.message,
+        msg: message.message,
+        pushName: message.pushName || 'Anónimo',
+        sender: message.key.remoteJid,
+        chat: message.key.remoteJid,
+        isGroup: message.key.remoteJid.endsWith('@g.us'),
+        text: getMessageText(message.message),
+        mtype: getMessageType(message.message),
+        mentionedJid: message.message?.extendedTextMessage?.contextInfo?.mentionedJid || [],
+        timestamp: Date.now()
+      };
+      
+      // Ultra-fast command detection
+      if (m.text) {
+        const detected = speedOptimizer.detectCommand(m.text);
+        if (detected) {
+          console.log(`⚡ Ultra-fast command (${detected.responseTime.toFixed(2)}ms): ${detected.command} from ${m.pushName}`);
+          await processUltraFastCommand(conn, m, detected);
+          return;
         }
         
-        // Enhanced message processing - basic version
-        const m = {
-          key: message.key,
-          message: message.message,
-          msg: message.message,
-          pushName: message.pushName || 'Unknown',
-          sender: message.key.remoteJid,
-          chat: message.key.remoteJid,
-          isGroup: message.key.remoteJid.endsWith('@g.us'),
-          text: getMessageText(message.message),
-          mtype: getMessageType(message.message),
-          mentionedJid: message.message?.extendedTextMessage?.contextInfo?.mentionedJid || []
-        };
-        
-        // Minimal console output for commands only
-        if (m.text && global.prefix.test(m.text)) {
-          console.log(`📨 Command: ${m.text.slice(0, 20)} from ${m.pushName}`);
+        // Process through plugin system for other commands
+        if (global.prefix.test(m.text)) {
+          await processCommand(conn, m);
+          return;
         }
         
-        // Process commands
-        if (m.text && global.prefix.test(m.text)) {
-          try {
-            await processCommand(conn, m);
-          } catch (error) {
-            logger.error('Command error:', error.message);
-          }
-        } else if (m.text) {
-          // Auto-respond to greetings
-          if (m.text.toLowerCase().includes('test') || m.text.toLowerCase().includes('hola')) {
-            await conn.sendMessage(m.sender, { text: '👋 ¡Hola! Bot funcionando.\n\nComandos: .ping .info .menu' });
-          }
-        }
+        // Smart auto-responses with youth touch
+        await handleAutoResponses(conn, m);
+      }
+      
+      const endTime = process.hrtime.bigint();
+      const totalTime = Number(endTime - startTime) / 1000000;
+      
+      if (totalTime > 50) {
+        logger.warn(`⚠️ Slow message processing: ${totalTime.toFixed(2)}ms`);
+      }
+    });
+    
+    await Promise.allSettled(processPromises);
+    
+  } catch (error) {
+    logger.error('Error processing messages:', error);
+  }
+}
+
+async function processUltraFastCommand(conn, m, detected) {
+  try {
+    const result = speedOptimizer.getInstantResponse(detected.category, detected.command);
+    
+    if (result) {
+      if (m.isGroup) {
+        await GroupOptimizer.optimizeGroupResponse(conn, m, result.response);
+      } else {
+        await conn.sendMessage(m.chat, { text: result.response });
+      }
+      
+      console.log(`🚀 Ultra response: ${(detected.responseTime + result.responseTime).toFixed(2)}ms ${result.cached ? '(cached)' : '(generated)'}`);
     }
   } catch (error) {
-    logger.error('Error processing message:', error);
+    logger.error('Ultra-fast command error:', error);
+  }
+}
+
+async function handleAutoResponses(conn, m) {
+  const text = m.text.toLowerCase();
+  const responses = {
+    // Saludos juveniles
+    'hola': '¡Ey qué tal! 👋✨ Soy tu bot favorito, usa .menu para ver la magia 🪄',
+    'hi': 'Hey there! 🔥 Ready to rock? Try .menu 🎮',
+    'buenos dias': '¡Buenos días champion! 🌅⚡ Que tengas un día genial, usa .menu 🚀',
+    'buenas': '¡Buenas vibras! ✨🎯 ¿Qué tal si checas el .menu? 🎮',
+    'test': '🧪 ¡Test exitoso! Sistema funcionando al 100% 💯\n⚡ Ultra velocidad activada\n🎮 Usa .menu para explorar',
+    'bot': '🤖 ¡Presente! Soy MoJiTo, tu asistente ultra rápido ⚡\n🔥 Respuestas en milisegundos\n🎯 Usa .menu para ver todo lo que puedo hacer',
+    'ping': '🏓 ¡Pong! Usa .ping para test completo de velocidad ⚡',
+    'help': '🆘 ¡Aquí tienes ayuda! Usa .menu para ver todos los comandos 📋✨',
+    'menu': '📋 ¡Perfecto! Usa .menu para ver el menú completo 🎮⚡'
+  };
+  
+  for (const [trigger, response] of Object.entries(responses)) {
+    if (text.includes(trigger)) {
+      await conn.sendMessage(m.chat, { text: response });
+      return;
+    }
   }
 }
 
