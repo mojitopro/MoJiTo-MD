@@ -190,11 +190,16 @@ async function checkExistingSession() {
     
     // Leer configuración guardada si existe
     if (fs.existsSync(configFile)) {
-      const savedConfig = JSON.parse(fs.readFileSync(configFile, 'utf8'));
-      if (savedConfig.phoneNumber) {
-        console.log(chalk.green(`🎯 Sesión detectada para: +${savedConfig.phoneNumber}`));
-        console.log(chalk.cyan('🔄 Conectando automáticamente con sesión guardada...'));
-        return savedConfig;
+      try {
+        const savedConfig = JSON.parse(fs.readFileSync(configFile, 'utf8'));
+        if (savedConfig.phoneNumber) {
+          console.log(chalk.green(`🎯 Sesión detectada para: +${savedConfig.phoneNumber}`));
+          console.log(chalk.cyan('🔄 Conectando automáticamente con sesión guardada...'));
+          return savedConfig;
+        }
+      } catch (error) {
+        logger.debug('Error leyendo configuración guardada:', error.message);
+        // Si hay error leyendo el archivo, continuar sin configuración
       }
     }
     

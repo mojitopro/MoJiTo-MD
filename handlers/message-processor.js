@@ -72,28 +72,35 @@ async function executeCommand(conn, m, text) {
     const plugin = findPluginForCommand(command);
     
     if (plugin) {
-      // Preparar contexto completo para el plugin
-      const context = {
-        conn,
-        m,
-        usedPrefix,
-        command,
-        args,
-        text: m.text,
-        isGroup: m.isGroup,
-        sender: m.sender,
-        pushName: m.pushName,
-        quoted: m.quoted,
-        mentionedJid: m.mentionedJid
-      };
+      // Preparar contexto según formato del plugin
+      console.log(`🚀 Ejecutando plugin: ${plugin.command || 'sin comando'}`);
       
       // Ejecutar el handler del plugin
       if (plugin.handler) {
-        await plugin.handler(context);
+        // Formato estándar: handler(m, { conn, usedPrefix, command, args })
+        await plugin.handler(m, {
+          conn,
+          usedPrefix,
+          command,
+          args,
+          text: m.text,
+          isGroup: m.isGroup,
+          sender: m.sender,
+          pushName: m.pushName
+        });
+      } else if (plugin.default) {
+        // Formato alternativo
+        await plugin.default(m, {
+          conn,
+          usedPrefix,
+          command,
+          args
+        });
       }
+      
+      console.log(`✅ Plugin ejecutado exitosamente`);
     } else {
-      // Comando no encontrado - respuesta sutil
-      console.log(`🔍 Comando no encontrado: ${command}`);
+      console.log(`🔍 Comando no encontrado: ${command} - Plugins disponibles: ${Object.keys(global.plugins || {}).length}`);
     }
     
   } catch (error) {
@@ -115,7 +122,13 @@ async function executeCommand(conn, m, text) {
  * Buscar plugin que maneja un comando específico
  */
 function findPluginForCommand(commandName) {
-  if (!global.plugins) return null;
+  if (!global.plugins) {
+    console.log('⚠️ No hay plugins cargados globalmente');
+    return null;
+  }
+  
+  console.log(`🔍 Buscando plugin para comando: ${commandName}`);
+  console.log(`📦 Plugins disponibles: ${Object.keys(global.plugins).length}`);
   
   for (const [pluginName, plugin] of Object.entries(global.plugins)) {
     if (!plugin.command) continue;
@@ -123,18 +136,21 @@ function findPluginForCommand(commandName) {
     // Si command es RegExp
     if (plugin.command instanceof RegExp) {
       if (plugin.command.test(commandName)) {
+        console.log(`✅ Plugin encontrado: ${pluginName} (RegExp)`);
         return plugin;
       }
     }
     // Si command es string
     else if (typeof plugin.command === 'string') {
       if (plugin.command === commandName) {
+        console.log(`✅ Plugin encontrado: ${pluginName} (String)`);
         return plugin;
       }
     }
     // Si command es array
     else if (Array.isArray(plugin.command)) {
       if (plugin.command.includes(commandName)) {
+        console.log(`✅ Plugin encontrado: ${pluginName} (Array)`);
         return plugin;
       }
     }
@@ -142,16 +158,19 @@ function findPluginForCommand(commandName) {
     // Verificar comandos alternativos en help array
     if (plugin.help && Array.isArray(plugin.help)) {
       if (plugin.help.includes(commandName)) {
+        console.log(`✅ Plugin encontrado: ${pluginName} (Help)`);
         return plugin;
       }
     }
     
     // Verificar aliases
     if (plugin.aliases && plugin.aliases.includes(commandName)) {
+      console.log(`✅ Plugin encontrado: ${pluginName} (Alias)`);
       return plugin;
     }
   }
   
+  console.log(`❌ No se encontró plugin para: ${commandName}`);
   return null;
 }
 
