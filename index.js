@@ -77,48 +77,74 @@ async function main() {
         description: 'Enable debug mode',
         default: false
       })
+      .option('interactive', {
+        alias: 'i',
+        type: 'boolean',
+        description: 'Use interactive startup menu',
+        default: false
+      })
       .example('$0 --pairing-code --phone +1234567890', 'Start with pairing code')
       .example('$0 --qr', 'Force QR code mode')
+      .example('$0 --interactive', 'Interactive startup menu')
       .help()
       .alias('help', 'h')
       .exitProcess(false)
       .parse();
     
-    // Set environment variables from command line
-    if (opts['pairing-code']) {
-      process.env.USE_PAIRING_CODE = 'true';
-      logger.info('Pairing code mode enabled via CLI');
-    }
-    
-    if (opts.phone) {
-      process.env.PHONE_NUMBER = opts.phone;
-      logger.info(`Phone number set: +${opts.phone}`);
-    }
-    
-    if (opts.qr) {
-      process.env.USE_PAIRING_CODE = 'false';
-      logger.info('QR code mode forced via CLI');
-    }
-    
-    if (opts.debug) {
-      process.env.DEBUG = 'true';
-      logger.info('Debug mode enabled');
-    }
-    
-    // Validate pairing code setup
-    if (process.env.USE_PAIRING_CODE === 'true' && !process.env.PHONE_NUMBER) {
-      logger.error('Pairing code mode requires a phone number. Use --phone option or set PHONE_NUMBER environment variable.');
-      console.log('\n📞 Ejemplo de uso:');
-      console.log('  node index.js --pairing-code --phone +1234567890');
-      console.log('  node index.js -p -n 1234567890\n');
-      process.exit(1);
-    }
-    
-    // Display connection mode
-    if (process.env.USE_PAIRING_CODE === 'true') {
-      logger.info(`🔐 Modo código de emparejamiento activado para: +${process.env.PHONE_NUMBER}`);
+    // Manejar modo interactivo o argumentos de línea de comandos
+    if (opts.interactive || (!opts['pairing-code'] && !opts.qr && !process.env.USE_PAIRING_CODE)) {
+      // Usar startup interactivo si no hay configuración específica
+      const { interactiveStartup, displaySelectedConfiguration } = await import('./core/interactive-startup.js');
+      const config = await interactiveStartup();
+      displaySelectedConfiguration(config);
+      
+      // Aplicar configuración
+      if (config.usePairingCode) {
+        process.env.USE_PAIRING_CODE = 'true';
+        process.env.PHONE_NUMBER = config.phoneNumber;
+        logger.info(`🔐 Configuración interactiva: Pairing code para +${config.phoneNumber}`);
+      } else {
+        process.env.USE_PAIRING_CODE = 'false';
+        logger.info('📱 Configuración interactiva: Código QR');
+      }
     } else {
-      logger.info('📱 Modo código QR activado');
+      // Usar argumentos de línea de comandos (comportamiento original)
+      if (opts['pairing-code']) {
+        process.env.USE_PAIRING_CODE = 'true';
+        logger.info('Pairing code mode enabled via CLI');
+      }
+      
+      if (opts.phone) {
+        process.env.PHONE_NUMBER = opts.phone;
+        logger.info(`Phone number set: +${opts.phone}`);
+      }
+      
+      if (opts.qr) {
+        process.env.USE_PAIRING_CODE = 'false';
+        logger.info('QR code mode forced via CLI');
+      }
+      
+      if (opts.debug) {
+        process.env.DEBUG = 'true';
+        logger.info('Debug mode enabled');
+      }
+      
+      // Validate pairing code setup
+      if (process.env.USE_PAIRING_CODE === 'true' && !process.env.PHONE_NUMBER) {
+        logger.error('Pairing code mode requires a phone number. Use --phone option or set PHONE_NUMBER environment variable.');
+        console.log('\n📞 Ejemplo de uso:');
+        console.log('  node index.js --pairing-code --phone +1234567890');
+        console.log('  node index.js -p -n 1234567890');
+        console.log('  node index.js --interactive\n');
+        process.exit(1);
+      }
+      
+      // Display connection mode
+      if (process.env.USE_PAIRING_CODE === 'true') {
+        logger.info(`🔐 Modo código de emparejamiento activado para: +${process.env.PHONE_NUMBER}`);
+      } else {
+        logger.info('📱 Modo código QR activado');
+      }
     }
     
     // Start worker process with restart capability

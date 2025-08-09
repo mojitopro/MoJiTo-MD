@@ -4,7 +4,7 @@
  */
 import { setupGlobalVariables } from '../config/settings.js';
 import { initializeDatabase } from '../services/database.js';
-import { initializeConnection } from './connection-clean.js';
+import { initializeConnection } from './connection-universal.js';
 import { loadPlugins } from '../plugins/loader.js';
 import { setupMessageHandler } from '../handlers/message.js';
 import { setupEventHandlers } from '../handlers/events.js';
@@ -29,8 +29,13 @@ export async function startBot() {
     await startHTTPServer(5000);
     logger.info('✅ HTTP server running on port 5000');
 
-    // Initialize clean pairing code connection
-    const connection = await initializeConnection();
+    // Initialize universal connection (QR or Pairing Code)
+    const connectionOptions = {
+      usePairingCode: process.env.USE_PAIRING_CODE === 'true',
+      phoneNumber: process.env.PHONE_NUMBER
+    };
+    
+    const connection = await initializeConnection(connectionOptions);
 
     // Store global connection reference
     global.conn = connection;

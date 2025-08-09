@@ -72,36 +72,42 @@ async function executeCommand(conn, m, text) {
     const plugin = findPluginForCommand(command);
     
     if (plugin) {
-      // Preparar contexto para el plugin
+      // Preparar contexto completo para el plugin
       const context = {
         conn,
+        m,
         usedPrefix,
         command,
         args,
         text: m.text,
         isGroup: m.isGroup,
         sender: m.sender,
-        pushName: m.pushName
+        pushName: m.pushName,
+        quoted: m.quoted,
+        mentionedJid: m.mentionedJid
       };
       
-      // Ejecutar handler del plugin
-      if (typeof plugin.handler === 'function') {
-        await plugin.handler(m, context);
+      // Ejecutar el handler del plugin
+      if (plugin.handler) {
+        await plugin.handler(context);
       }
     } else {
-      // Comando no encontrado - respuesta amigable
-      await conn.sendMessage(m.chat, {
-        text: `❓ Comando "${command}" no encontrado.\n\nUsa .menu para ver comandos disponibles.`
-      });
+      // Comando no encontrado - respuesta sutil
+      console.log(`🔍 Comando no encontrado: ${command}`);
     }
     
   } catch (error) {
     logger.error('Error ejecutando comando:', error.message);
-    
-    // Respuesta de error amigable
-    await conn.sendMessage(m.chat, {
-      text: `❌ Error ejecutando comando: ${error.message}`
-    }).catch(() => {});
+    // Enviar mensaje de error al usuario
+    if (conn && m.chat) {
+      try {
+        await conn.sendMessage(m.chat, { 
+          text: '❌ Error procesando comando. Intenta de nuevo.' 
+        });
+      } catch (sendError) {
+        logger.debug('Error enviando mensaje de error:', sendError.message);
+      }
+    }
   }
 }
 
@@ -120,22 +126,29 @@ function findPluginForCommand(commandName) {
         return plugin;
       }
     }
-    // Si command es string o array
+    // Si command es string
     else if (typeof plugin.command === 'string') {
       if (plugin.command === commandName) {
         return plugin;
       }
     }
+    // Si command es array
     else if (Array.isArray(plugin.command)) {
       if (plugin.command.includes(commandName)) {
         return plugin;
       }
     }
-    // Si tiene help array
-    else if (plugin.help && Array.isArray(plugin.help)) {
+    
+    // Verificar comandos alternativos en help array
+    if (plugin.help && Array.isArray(plugin.help)) {
       if (plugin.help.includes(commandName)) {
         return plugin;
       }
+    }
+    
+    // Verificar aliases
+    if (plugin.aliases && plugin.aliases.includes(commandName)) {
+      return plugin;
     }
   }
   

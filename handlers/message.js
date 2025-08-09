@@ -12,8 +12,8 @@ export function setupMessageHandler(conn) {
 
   console.log('✅ Sistema de mensajes integrado correctamente');
   
-  // Escuchar mensajes con máxima compatibilidad
-  conn.ev.on('messages.upsert', async (update) => {
+  // Crear función de procesamiento para uso global
+  const messageProcessor = async (update) => {
     const { messages, type } = update;
     
     if (type !== 'notify') return;
@@ -23,5 +23,13 @@ export function setupMessageHandler(conn) {
       // Procesar en paralelo para máxima velocidad
       setImmediate(() => processMessage(conn, message));
     }
-  });
+  };
+  
+  // Registrar globalmente para uso en connection
+  global.messageHandler = messageProcessor;
+  
+  // Escuchar mensajes con máxima compatibilidad
+  conn.ev.on('messages.upsert', messageProcessor);
+  
+  logger.info('✅ Message handler configurado y registrado globalmente');
 }
