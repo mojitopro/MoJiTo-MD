@@ -24,10 +24,10 @@ author = "agent"
 
 [[workflows.workflow.tasks]]
 task = "workflow.run"
-args = "MoJiTo Bot - Optimized"
+args = "MoJiTo Bot - Clean"
 
 [[workflows.workflow]]
-name = "MoJiTo Bot - Optimized"
+name = "MoJiTo Bot - Clean"
 author = "agent"
 
 [[workflows.workflow.tasks]]

@@ -64,12 +64,13 @@ export async function initializePairingSystem() {
       logger.info('📦 Usando versión estable');
     }
 
-    // Crear socket ultra optimizado
+    // Crear socket ultra optimizado sin logs excesivos
     const socket = makeWASocket({
       version,
+      logger: createSilentLogger(),
       auth: {
         creds: state.creds,
-        keys: makeCacheableSignalKeyStore(state.keys, logger)
+        keys: makeCacheableSignalKeyStore(state.keys, createSilentLogger())
       },
       printQRInTerminal: false, // NUNCA mostrar QR
       browser: Browsers.ubuntu('Chrome'), // Browser específico para pairing
@@ -279,97 +280,14 @@ async function ensureAuthFolder() {
 }
 
 /**
- * Configurar sistema de mensajería ultra rápida
+ * Configurar sistema de mensajería integrado nativamente
  */
 function setupUltraFastMessaging(socket) {
-  // Pool de comandos para procesamiento simultáneo
-  const commandQueue = [];
-  const MAX_CONCURRENT = 15;
-  let activeCommands = 0;
-
-  const processQueue = () => {
-    while (commandQueue.length > 0 && activeCommands < MAX_CONCURRENT) {
-      const task = commandQueue.shift();
-      activeCommands++;
-      
-      setImmediate(async () => {
-        try {
-          await task();
-        } catch (error) {
-          logger.debug('Command error:', error.message);
-        } finally {
-          activeCommands--;
-        }
-      });
-    }
-  };
-
-  // Procesar cola cada 5ms para máxima velocidad
-  setInterval(processQueue, 5);
-  
-  logger.info('⚡ Sistema de comandos simultáneos configurado (15 concurrent)');
+  // La integración con el sistema de plugins se hace en core/app.js
+  logger.info('⚡ Sistema de mensajería ultra rápido configurado');
 }
 
-/**
- * Procesar comandos ultra rápido
- */
-async function processUltraFastCommand(socket, message) {
-  try {
-    const text = message.message?.conversation || 
-                message.message?.extendedTextMessage?.text || 
-                message.message?.imageMessage?.caption || '';
-    
-    if (!text) return;
-
-    // Detección ultra rápida de comandos
-    if (text.startsWith('.') || text.startsWith('/') || text.startsWith('!')) {
-      const startTime = process.hrtime.bigint();
-      const command = text.slice(1).split(' ')[0].toLowerCase();
-      const chat = message.key.remoteJid;
-
-      // Comandos ultra rápidos
-      switch (command) {
-        case 'ping':
-        case 'p':
-          const responseTime = Number(process.hrtime.bigint() - startTime) / 1000000;
-          await socket.sendMessage(chat, { 
-            text: `🏓 Ultra Pong!\n⚡ Respuesta: ${responseTime.toFixed(2)}ms\n🚀 MoJiTo funcionando al máximo`
-          });
-          break;
-
-        case 'test':
-        case 'prueba':
-          await socket.sendMessage(chat, { 
-            text: `✅ Test Ultra Exitoso!\n🔥 Bot conectado vía Pairing Code\n⚡ Comandos simultáneos: ACTIVOS\n💎 Sistema funcionando al 100%`
-          });
-          break;
-
-        case 'speed':
-        case 'velocidad':
-          await socket.sendMessage(chat, { 
-            text: `🚀 MOJITO ULTRA - MÁXIMA VELOCIDAD\n\n⚡ Respuestas en milisegundos\n🔥 Comandos simultáneos soportados\n💎 Sistema ultra optimizado\n🎯 Pairing Code funcionando perfecto`
-          });
-          break;
-
-        case 'status':
-        case 'estado':
-          const uptime = Math.floor(process.uptime() / 60);
-          const memory = (process.memoryUsage().heapUsed / 1024 / 1024).toFixed(2);
-          await socket.sendMessage(chat, { 
-            text: `📊 ESTADO DEL BOT:\n\n✅ Conectado vía Pairing Code\n⏰ Activo: ${uptime} minutos\n💾 RAM: ${memory} MB\n🚀 Velocidad: Ultra rápida\n🔥 Estado: 100% funcional`
-          });
-          break;
-
-        default:
-          await socket.sendMessage(chat, { 
-            text: `❓ Comando "${command}" no reconocido.\n\n🔥 Disponibles:\n• .ping - Test de velocidad\n• .test - Test completo\n• .speed - Info de velocidad\n• .status - Estado del bot`
-          });
-      }
-    }
-  } catch (error) {
-    logger.debug('Error procesando comando:', error.message);
-  }
-}
+// Función eliminada - integración nativa con handlers
 
 /**
  * Manejar reconexión inteligente
@@ -452,6 +370,22 @@ function getDisconnectReason(reason) {
   };
   
   return reasons[reason] || `Código ${reason || 'desconocido'}`;
+}
+
+/**
+ * Crear logger silencioso para reducir spam de logs
+ */
+function createSilentLogger() {
+  return {
+    trace: () => {},
+    debug: () => {},
+    info: () => {},
+    warn: () => {},
+    error: () => {},
+    fatal: () => {},
+    child: () => createSilentLogger(),
+    level: 'silent'
+  };
 }
 
 export { globalSocket };

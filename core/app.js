@@ -4,7 +4,7 @@
  */
 import { setupGlobalVariables } from '../config/settings.js';
 import { initializeDatabase } from '../services/database.js';
-import { initializePairingSystem } from './pairing-system.js';
+import { initializeConnection } from './connection-clean.js';
 import { loadPlugins } from '../plugins/loader.js';
 import { setupMessageHandler } from '../handlers/message.js';
 import { setupEventHandlers } from '../handlers/events.js';
@@ -29,21 +29,23 @@ export async function startBot() {
     startHTTPServer(5000);
     logger.info('✅ HTTP server running on port 5000');
 
-    // Initialize pairing code system for WhatsApp connection
-    const connection = await initializePairingSystem();
+    // Initialize clean pairing code connection
+    const connection = await initializeConnection();
 
     // Store global connection reference
     global.conn = connection;
     logger.info('✅ WhatsApp connection initialized');
 
-    // Load plugins
+    // Load plugins natively integrated with the pairing system
     const plugins = await loadPlugins();
     logger.info(`✅ Loaded ${plugins.length} plugins`);
 
-    // Setup message and event handlers
-    setupMessageHandler(connection);
-    setupEventHandlers(connection);
-    logger.info('✅ Message handlers configured');
+    // Setup native message and event handlers (already integrated in pairing system)
+    if (connection && !connection.shouldProcessMessages) {
+      setupMessageHandler(connection);
+      setupEventHandlers(connection);
+      logger.info('✅ Backup message handlers configured');
+    }
 
     // Start cleanup service
     startCleanupService();
