@@ -1,2 +1,2 @@
-# -MoJiTo
+# MoJiTo MD
 development by Shadow Ōf Fire 
